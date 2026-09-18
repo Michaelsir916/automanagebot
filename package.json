@@ -1,0 +1,14 @@
+{
+  "name": "telegram-paid-access-bot",
+  "version": "1.0.0",
+  "description": "Wallet-based paid channel access bot using Telegram Stars, with join-request gating, misuse detection, and a full admin panel.",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
