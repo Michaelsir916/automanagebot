@@ -149,7 +149,7 @@ sequenceDiagram
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/telegram-paid-access-bot.git
+git clone https://github.com/Michaelsir916/automanagebot/blob/main/README.md
 cd telegram-paid-access-bot
 npm install
 cp .env.example .env
