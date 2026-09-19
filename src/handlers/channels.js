@@ -4,6 +4,8 @@ const walletsDb = require('../db/wallets');
 const linksDb = require('../db/links');
 const bansDb = require('../db/bans');
 const adminsDb = require('../db/admins');
+const subscriptionsDb = require('../db/subscriptions');
+const removedMembersDb = require('../db/removedMembers');
 const { genId } = require('../utils/ids');
 
 // Admins see a special (usually much lower) test price so they can try the
@@ -39,9 +41,13 @@ function register(bot) {
     if (!channel || !channel.active) return ctx.reply('This channel is no longer available.');
     const price = priceForUser(channel, ctx.from.id);
     const balance = walletsDb.getBalance(ctx.from.id);
+    const durationLine = channel.durationDays
+      ? `Access length: <b>${channel.durationDays} day(s)</b>\n`
+      : '';
     await ctx.reply(
       `📢 <b>${channel.title}</b>\n\n` +
       `Price: <b>${price} ⭐</b>\n` +
+      durationLine +
       `Your wallet balance: <b>${balance} ⭐</b>\n\n` +
       `Unlocking gives you a one-time join link that works only for you.`,
       {
@@ -89,7 +95,7 @@ function register(bot) {
         channelTitle: channel.title
       });
 
-      linksDb.add({
+      const link = {
         id: genId('lnk'),
         channelId: channel.id,
         chatId: channel.chatId,
@@ -102,12 +108,25 @@ function register(bot) {
         usedAt: null,
         usedBy: null,
         price
-      });
+      };
+      linksDb.add(link);
+
+      // Paying again is how a user "renews" - always clear any earlier
+      // expiry block so their fresh link actually works.
+      removedMembersDb.remove(channel.id, userId);
+
+      let expiryLine = '';
+      if (channel.durationDays && channel.durationDays > 0) {
+        const sub = subscriptionsDb.start(channel.id, userId, channel.chatId, link.id, channel.durationDays);
+        const expiryDate = new Date(sub.expiresAt).toLocaleString();
+        expiryLine = `\n⏳ Your access is valid until <b>${expiryDate}</b>. You'll be automatically removed after that unless you recharge and unlock again.\n`;
+      }
 
       await ctx.reply(
         `✅ Access unlocked for <b>${channel.title}</b>!\n\n` +
-        `🔗 Your one-time join link:\n${invite.invite_link}\n\n` +
-        `⚠️ This link works for <b>you only</b>. Tap it, send the join request, and it will be approved automatically within seconds.`,
+        `🔗 Your one-time join link:\n${invite.invite_link}\n` +
+        expiryLine +
+        `\n⚠️ This link works for <b>you only</b>. Tap it, send the join request, and it will be approved automatically within seconds.`,
         { parse_mode: 'HTML' }
       );
     } catch (err) {

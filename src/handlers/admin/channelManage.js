@@ -41,12 +41,14 @@ function register(bot) {
       `Chat ID: ${channel.chatId}\n` +
       `Price: ${channel.price}⭐\n` +
       `Test price (admins): ${channel.testPrice}⭐\n` +
+      `Subscription length: ${channel.durationDays ? `${channel.durationDays} day(s)` : 'Lifetime (no expiry)'}\n` +
       `Status: ${channel.active ? 'Active 🟢' : 'Inactive 🔴'}`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
           [Markup.button.callback('✏️ Edit Price', `admin_ch_price_${channel.id}`)],
           [Markup.button.callback('🧪 Edit Test Price', `admin_ch_testprice_${channel.id}`)],
+          [Markup.button.callback('📅 Edit Duration', `admin_ch_duration_${channel.id}`)],
           [Markup.button.callback(channel.active ? '⏸ Deactivate' : '▶️ Activate', `admin_ch_toggle_${channel.id}`)],
           [Markup.button.callback('🗑 Delete', `admin_ch_delete_${channel.id}`)],
           [Markup.button.callback('⬅️ Back', 'admin_channels')]
@@ -67,6 +69,16 @@ function register(bot) {
     if (!requirePerm(ctx, 'manage_channels')) return;
     setState(ctx.from.id, 'admin_edit_testprice', { channelId: ctx.match[1] });
     await ctx.reply('Send the new TEST price in Stars ⭐ for admins (e.g. 1):');
+  });
+
+  bot.action(/admin_ch_duration_(\S+)/, async ctx => {
+    await ctx.answerCbQuery();
+    if (!requirePerm(ctx, 'manage_channels')) return;
+    setState(ctx.from.id, 'admin_edit_duration', { channelId: ctx.match[1] });
+    await ctx.reply(
+      'Send the subscription length in days (e.g. 30). Decimals are fine for testing (e.g. 0.01 ≈ 14 minutes).\n' +
+      'Send 0 for lifetime access with no auto-kick.'
+    );
   });
 
   bot.action(/admin_ch_toggle_(\S+)/, async ctx => {
@@ -111,20 +123,32 @@ function register(bot) {
 
     if (state.step === 'admin_add_channel_testprice') {
       const testPrice = parseInt(ctx.message.text.trim(), 10);
+      if (!Number.isInteger(testPrice) || testPrice < 0) return ctx.reply('Invalid test price. Please try again.');
+      setState(ctx.from.id, 'admin_add_channel_duration', { ...state.data, testPrice });
+      return ctx.reply(
+        'Send the subscription length in days (e.g. 30).\n' +
+        'Send 0 for lifetime access with no auto-kick.'
+      );
+    }
+
+    if (state.step === 'admin_add_channel_duration') {
+      const durationDays = parseFloat(ctx.message.text.trim());
       clearState(ctx.from.id);
-      if (!Number.isInteger(testPrice) || testPrice < 0) return ctx.reply('Invalid test price. Please start over from Manage Channels.');
+      if (Number.isNaN(durationDays) || durationDays < 0) return ctx.reply('Invalid duration. Please start over from Manage Channels.');
       const channel = channelsDb.add({
         id: genId('ch'),
         chatId: state.data.chatId,
         title: state.data.title,
         price: state.data.price,
-        testPrice,
+        testPrice: state.data.testPrice,
+        durationDays,
         welcomeMessage: '',
         active: true,
         createdAt: new Date().toISOString(),
         createdBy: ctx.from.id
       });
-      return ctx.reply(`✅ Channel added: ${channel.title} (${channel.price}⭐ / test ${channel.testPrice}⭐)`);
+      const durationLabel = durationDays > 0 ? `${durationDays} day(s)` : 'lifetime';
+      return ctx.reply(`✅ Channel added: ${channel.title} (${channel.price}⭐ / test ${channel.testPrice}⭐ / ${durationLabel})`);
     }
 
     if (state.step === 'admin_edit_price') {
@@ -141,6 +165,15 @@ function register(bot) {
       if (!Number.isInteger(testPrice) || testPrice < 0) return ctx.reply('Invalid price.');
       channelsDb.update(state.data.channelId, { testPrice });
       return ctx.reply(`✅ Test price updated to ${testPrice}⭐.`);
+    }
+
+    if (state.step === 'admin_edit_duration') {
+      const durationDays = parseFloat(ctx.message.text.trim());
+      clearState(ctx.from.id);
+      if (Number.isNaN(durationDays) || durationDays < 0) return ctx.reply('Invalid duration.');
+      channelsDb.update(state.data.channelId, { durationDays });
+      const durationLabel = durationDays > 0 ? `${durationDays} day(s)` : 'lifetime (no expiry)';
+      return ctx.reply(`✅ Subscription length updated to ${durationLabel}.\n\nNote: this only affects new unlocks - it does not change anyone's already-active subscription.`);
     }
 
     return next();

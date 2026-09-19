@@ -1,5 +1,6 @@
 const linksDb = require('../db/links');
 const channelsDb = require('../db/channels');
+const removedMembersDb = require('../db/removedMembers');
 const { notifyAdmins } = require('../utils/notify');
 const { userTag } = require('../utils/format');
 const { misuseActionButtons } = require('../utils/keyboards');
@@ -43,6 +44,22 @@ function register(bot) {
     const isOwner = isOpenLink || String(pendingLink.ownerUserId) === String(userId);
 
     if (isOwner) {
+      // Extra safety net: if this exact user was kicked for this exact
+      // channel (expired subscription, etc.) and hasn't been cleared since,
+      // block them even though the link itself matches. In normal flow
+      // this never triggers, because unlocking access again already clears
+      // the block - this only catches edge-case races.
+      if (removedMembersDb.isRemoved(pendingLink.channelId, userId)) {
+        try { await ctx.telegram.declineChatJoinRequest(chatId, userId); } catch (e) {}
+        try {
+          await ctx.telegram.sendMessage(
+            userId,
+            `⚠️ Your previous access to this channel was removed and hasn't been cleared yet. Please recharge and unlock access again.`
+          );
+        } catch (e) {}
+        return;
+      }
+
       try {
         await ctx.telegram.approveChatJoinRequest(chatId, userId);
         linksDb.update(pendingLink.id, { status: 'used', usedAt: new Date().toISOString(), usedBy: userId });

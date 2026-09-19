@@ -26,7 +26,7 @@ function register(bot) {
     const lines = [];
     for (const c of channels) {
       try {
-        const count = await ctx.telegram.getChatMemberCount(c.chatId);
+        const count = await ctx.telegram.getChatMembersCount(c.chatId);
         lines.push(`${c.title}: ${count} members`);
       } catch (err) {
         lines.push(`${c.title}: unable to fetch (${err.message})`);

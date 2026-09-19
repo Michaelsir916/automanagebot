@@ -20,6 +20,7 @@ require('./handlers/admin/manualLink').register(bot);
 require('./handlers/admin/broadcast').register(bot);
 require('./handlers/admin/walletAdmin').register(bot);
 require('./handlers/admin/banList').register(bot);
+require('./handlers/admin/removedMembers').register(bot);
 require('./handlers/admin/paymentHistory').register(bot);
 require('./handlers/admin/adminRoles').register(bot);
 require('./handlers/admin/refundAction').register(bot);
@@ -32,6 +33,7 @@ bot.launch({
   allowedUpdates: ['message', 'callback_query', 'chat_join_request', 'chat_member', 'pre_checkout_query']
 }).then(() => {
   console.log('✅ Bot started successfully.');
+  require('./jobs/subscriptionExpiry').start(bot);
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
