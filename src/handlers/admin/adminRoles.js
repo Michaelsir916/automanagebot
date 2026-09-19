@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const adminsDb = require('../../db/admins');
 const { setState, getState, clearState } = require('../../state');
+const { btnSuccess, btnDanger } = require('../../utils/keyboards');
 
 function register(bot) {
   bot.action('admin_roles', async ctx => {
@@ -13,8 +14,8 @@ function register(bot) {
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Add Moderator', 'admin_add_mod')],
-          [Markup.button.callback('➖ Remove Admin', 'admin_remove_mod')],
+          [btnSuccess('➕ Add Moderator', 'admin_add_mod')],
+          [btnDanger('➖ Remove Admin', 'admin_remove_mod')],
           [Markup.button.callback('⬅️ Back', 'admin_back')]
         ])
       }

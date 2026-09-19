@@ -3,6 +3,7 @@ const walletsDb = require('../db/wallets');
 const paymentsDb = require('../db/payments');
 const bansDb = require('../db/bans');
 const { setState, getState, clearState } = require('../state');
+const { btnPrimary, btnSuccess } = require('../utils/keyboards');
 
 const RECHARGE_PACKAGES = [50, 100, 250, 500];
 
@@ -31,9 +32,9 @@ function register(bot) {
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Recharge', 'wallet_recharge')],
-          [Markup.button.callback('📜 Transaction History', 'wallet_history')],
-          [Markup.button.callback('🎁 Gift Balance', 'wallet_gift')],
+          [btnSuccess('➕ Recharge', 'wallet_recharge')],
+          [btnPrimary('📜 Transaction History', 'wallet_history')],
+          [btnPrimary('🎁 Gift Balance', 'wallet_gift')],
           [Markup.button.callback('⬅️ Back', 'menu_main')]
         ])
       }
@@ -43,7 +44,7 @@ function register(bot) {
   bot.action('wallet_recharge', async ctx => {
     await ctx.answerCbQuery();
     if (bansDb.isBanned(ctx.from.id)) return ctx.reply('🚫 You are banned from using this service.');
-    const rows = RECHARGE_PACKAGES.map(p => [Markup.button.callback(`${p} ⭐`, `recharge_${p}`)]);
+    const rows = RECHARGE_PACKAGES.map(p => [btnSuccess(`${p} ⭐`, `recharge_${p}`)]);
     rows.push([Markup.button.callback('✏️ Custom Amount', 'recharge_custom')]);
     rows.push([Markup.button.callback('⬅️ Back', 'menu_wallet')]);
     await ctx.reply('Select a recharge amount:', Markup.inlineKeyboard(rows));
@@ -136,8 +137,11 @@ function register(bot) {
   });
 
   bot.on('message', async (ctx, next) => {
-    if (!ctx.message.successful_payment) return next();
     const payment = ctx.message.successful_payment;
+    // Only claim wallet-recharge invoices here (payload prefix we set
+    // ourselves in sendRechargeInvoice). Other payloads - e.g. a plan/bundle
+    // purchase from handlers/subscribe.js - fall through to their own handler.
+    if (!payment || !payment.invoice_payload.startsWith('recharge_')) return next();
     const stars = payment.total_amount; // for XTR, this IS the star count
     const userId = ctx.from.id;
 

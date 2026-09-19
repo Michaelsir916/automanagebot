@@ -2,6 +2,7 @@ const { Markup } = require('telegraf');
 const adminsDb = require('../../db/admins');
 const paymentsDb = require('../../db/payments');
 const channelsDb = require('../../db/channels');
+const { btnPrimary } = require('../../utils/keyboards');
 
 function register(bot) {
   bot.action('admin_payments', async ctx => {

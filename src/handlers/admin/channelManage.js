@@ -3,6 +3,7 @@ const channelsDb = require('../../db/channels');
 const adminsDb = require('../../db/admins');
 const { genId } = require('../../utils/ids');
 const { setState, getState, clearState } = require('../../state');
+const { btnPrimary, btnSuccess, btnDanger } = require('../../utils/keyboards');
 
 function requirePerm(ctx, perm) {
   return adminsDb.hasPermission(ctx.from.id, perm);
@@ -14,9 +15,9 @@ function register(bot) {
     if (!requirePerm(ctx, 'manage_channels')) return;
     const list = channelsDb.list();
     const rows = list.map(c => [
-      Markup.button.callback(`${c.active ? '🟢' : '🔴'} ${c.title} — ${c.price}⭐`, `admin_ch_${c.id}`)
+      btnPrimary(`${c.active ? '🟢' : '🔴'} ${c.title} — ${c.price}⭐`, `admin_ch_${c.id}`)
     ]);
-    rows.push([Markup.button.callback('➕ Add Channel', 'admin_ch_add')]);
+    rows.push([btnSuccess('➕ Add Channel', 'admin_ch_add')]);
     rows.push([Markup.button.callback('⬅️ Back', 'admin_back')]);
     await ctx.reply('📢 <b>Channels</b>', { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows) });
   });
@@ -46,11 +47,11 @@ function register(bot) {
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('✏️ Edit Price', `admin_ch_price_${channel.id}`)],
-          [Markup.button.callback('🧪 Edit Test Price', `admin_ch_testprice_${channel.id}`)],
-          [Markup.button.callback('📅 Edit Duration', `admin_ch_duration_${channel.id}`)],
-          [Markup.button.callback(channel.active ? '⏸ Deactivate' : '▶️ Activate', `admin_ch_toggle_${channel.id}`)],
-          [Markup.button.callback('🗑 Delete', `admin_ch_delete_${channel.id}`)],
+          [btnPrimary('✏️ Edit Price', `admin_ch_price_${channel.id}`)],
+          [btnPrimary('🧪 Edit Test Price', `admin_ch_testprice_${channel.id}`)],
+          [btnPrimary('📅 Edit Duration', `admin_ch_duration_${channel.id}`)],
+          [channel.active ? btnDanger('⏸ Deactivate', `admin_ch_toggle_${channel.id}`) : btnSuccess('▶️ Activate', `admin_ch_toggle_${channel.id}`)],
+          [btnDanger('🗑 Delete', `admin_ch_delete_${channel.id}`)],
           [Markup.button.callback('⬅️ Back', 'admin_channels')]
         ])
       }

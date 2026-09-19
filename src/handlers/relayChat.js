@@ -2,9 +2,10 @@ const { Markup } = require('telegraf');
 const { startRelay, endRelay, getRelayTarget, getRelayAdmin } = require('../state');
 const adminsDb = require('../db/admins');
 const { userTag } = require('../utils/format');
+const { btnPrimary } = require('../utils/keyboards');
 
 function contactUserButton(userId) {
-  return Markup.inlineKeyboard([[Markup.button.callback('💬 Message this user', `contact_${userId}`)]]);
+  return Markup.inlineKeyboard([[btnPrimary('💬 Message this user', `contact_${userId}`)]]);
 }
 
 function register(bot) {

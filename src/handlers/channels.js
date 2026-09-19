@@ -7,6 +7,7 @@ const adminsDb = require('../db/admins');
 const subscriptionsDb = require('../db/subscriptions');
 const removedMembersDb = require('../db/removedMembers');
 const { genId } = require('../utils/ids');
+const { btnPrimary, btnSuccess } = require('../utils/keyboards');
 
 // Admins see a special (usually much lower) test price so they can try the
 // full purchase flow without spending real Stars.
@@ -53,7 +54,7 @@ function register(bot) {
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔓 Unlock Access', `unlock_${channel.id}`)],
+          [btnSuccess('🔓 Unlock Access', `unlock_${channel.id}`)],
           [Markup.button.callback('⬅️ Back', 'menu_channels')]
         ])
       }
@@ -77,7 +78,7 @@ function register(bot) {
     if (balance < price) {
       return ctx.reply(
         `❌ Insufficient balance.\n\nYou need ${price}⭐ but your wallet has ${balance}⭐.`,
-        Markup.inlineKeyboard([[Markup.button.callback('💰 Recharge Wallet', 'menu_wallet')]])
+        Markup.inlineKeyboard([[btnSuccess('💰 Recharge Wallet', 'menu_wallet')]])
       );
     }
 

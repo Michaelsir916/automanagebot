@@ -10,12 +10,14 @@ require('./handlers/relayChat').register(bot);
 
 require('./handlers/start').register(bot);
 require('./handlers/channels').register(bot);
+require('./handlers/subscribe').register(bot);
 require('./handlers/wallet').register(bot);
 require('./handlers/joinRequest').register(bot);
 require('./handlers/memberGuard').register(bot);
 
 require('./handlers/admin/panel').register(bot);
 require('./handlers/admin/channelManage').register(bot);
+require('./handlers/admin/planManage').register(bot);
 require('./handlers/admin/manualLink').register(bot);
 require('./handlers/admin/broadcast').register(bot);
 require('./handlers/admin/walletAdmin').register(bot);
@@ -34,6 +36,7 @@ bot.launch({
 }).then(() => {
   console.log('✅ Bot started successfully.');
   require('./jobs/subscriptionExpiry').start(bot);
+  require('./jobs/autoRenew').start(bot);
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));

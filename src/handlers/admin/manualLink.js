@@ -4,6 +4,7 @@ const linksDb = require('../../db/links');
 const adminsDb = require('../../db/admins');
 const { genId } = require('../../utils/ids');
 const { setState, getState, clearState } = require('../../state');
+const { btnPrimary, btnSuccess } = require('../../utils/keyboards');
 
 async function createManualLink(ctx, channelId, targetUserId) {
   const channel = channelsDb.getById(channelId);
@@ -44,7 +45,7 @@ function register(bot) {
     if (!adminsDb.hasPermission(ctx.from.id, 'generate_link')) return;
     const list = channelsDb.list();
     if (list.length === 0) return ctx.reply('No channels configured yet. Add one from Manage Channels first.');
-    const rows = list.map(c => [Markup.button.callback(c.title, `manual_ch_${c.id}`)]);
+    const rows = list.map(c => [btnPrimary(c.title, `manual_ch_${c.id}`)]);
     rows.push([Markup.button.callback('⬅️ Back', 'admin_back')]);
     await ctx.reply('Choose a channel to generate a manual link for:', Markup.inlineKeyboard(rows));
   });
@@ -57,8 +58,8 @@ function register(bot) {
     await ctx.reply(
       'Target a specific user, or let anyone use it once?',
       Markup.inlineKeyboard([
-        [Markup.button.callback('🎯 Specific User', `manual_target_${channel.id}`)],
-        [Markup.button.callback('👥 Anyone (first come)', `manual_open_${channel.id}`)],
+        [btnPrimary('🎯 Specific User', `manual_target_${channel.id}`)],
+        [btnSuccess('👥 Anyone (first come)', `manual_open_${channel.id}`)],
         [Markup.button.callback('⬅️ Back', 'admin_manual_link')]
       ])
     );

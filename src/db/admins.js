@@ -5,7 +5,7 @@ const config = require('../config');
 const FILE = path.join(__dirname, '..', '..', 'data', 'admins.json');
 
 const ALL_PERMISSIONS = [
-  'manage_channels', 'generate_link', 'broadcast',
+  'manage_channels', 'manage_plans', 'generate_link', 'broadcast',
   'wallet_adjust', 'ban', 'view_payments', 'manage_admins'
 ];
 

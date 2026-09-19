@@ -3,6 +3,7 @@ const adminsDb = require('../../db/admins');
 const removedMembersDb = require('../../db/removedMembers');
 const channelsDb = require('../../db/channels');
 const { setState, getState, clearState } = require('../../state');
+const { btnSuccess } = require('../../utils/keyboards');
 
 function register(bot) {
   bot.action('admin_removed_members', async ctx => {
@@ -27,7 +28,7 @@ function register(bot) {
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('➖ Clear an Entry', 'admin_removed_clear')],
+          [btnSuccess('➖ Clear an Entry', 'admin_removed_clear')],
           [Markup.button.callback('⬅️ Back', 'admin_back')]
         ])
       }
