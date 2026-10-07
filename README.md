@@ -306,3 +306,26 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 **⭐ If this project is useful to you, consider giving it a star!**
 
 </div>
+
+---
+
+## v1.1 additions
+
+**Menus:** 2-column user menu (Plans, Channels, Wallet, My Account, Help, Language), expiry line on the home screen, Back/Home on every screen. Admin panel grouped into Payments and Members hubs with a live dashboard header.
+
+**Money:** recharge bonus packages, referral rewards (paid on the referred user's first recharge), coupon codes, renewal discount, manual UPI payments with screenshot approval, receipts.
+
+**Automation:** expiry reminders (default 3 and 1 day before, with a Renew button), win-back coupon after expiry, automatic backup to super admins' DMs.
+
+**Admin:** Find User, Tickets, Revenue report, Coupons, UPI Pending, segmented Broadcast with preview, Audit Log, and Settings (toggles, values, packages, backup, restore, maintenance mode). Everything in Settings is changed from the bot, no restart needed.
+
+**Slow network:** all Telegram calls retry automatically on timeouts/resets/flood-wait, buttons answer instantly, repeat taps of the same button are ignored while it is processing, screens edit in place instead of piling up messages, the bot waits for Telegram at boot instead of crashing, and long-running handlers get a 5 minute timeout.
+
+### First-time setup checklist
+1. `npm install` then `npm start`
+2. Send `/admin` to the bot, open ⚙️ Settings
+3. For UPI: Edit Values → set UPI ID and name, then turn UPI ON
+4. Tap 💾 Backup Now once to confirm the file reaches your DM
+5. Use `pm2 start ecosystem.config.js` for 24/7 running (check `pm2 list` for duplicates, a second copy causes 409 conflicts)
+
+Data lives in `data/*.json`. Back up that folder (the bot does it for you every 12 hours by default).
