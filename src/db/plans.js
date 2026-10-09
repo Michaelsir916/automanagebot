@@ -34,6 +34,10 @@ function listActiveSingles() {
   return listActive().filter(p => p.type === 'single');
 }
 
+function listActiveTrials() {
+  return listActive().filter(p => p.oncePerUser);
+}
+
 function getById(id) {
   return list().find(p => p.id === id) || null;
 }
@@ -58,6 +62,6 @@ function remove(id) {
 }
 
 module.exports = {
-  list, listActive, listActiveByChannel, listActiveBundles, listActiveSingles,
+  list, listActive, listActiveByChannel, listActiveBundles, listActiveSingles, listActiveTrials,
   getById, add, update, remove
 };

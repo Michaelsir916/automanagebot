@@ -34,4 +34,9 @@ function listAll() {
   return loadAll().payments;
 }
 
-module.exports = { add, listByUser, listAll };
+function hasCharge(chargeId) {
+  if (!chargeId) return false;
+  return loadAll().payments.some(p => p.telegramPaymentChargeId === chargeId);
+}
+
+module.exports = { add, listByUser, listAll, hasCharge };

@@ -5,6 +5,8 @@ const channelsDb = require('../db/channels');
 const config = require('../config');
 const { notifyAdmins } = require('../utils/notify');
 const { btnSuccess } = require('../utils/keyboards');
+const { t } = require('../utils/i18n');
+const { escapeHtml } = require('../utils/format');
 
 // Sweeps every "active" subscription, and for any whose expiry has passed,
 // expires + kicks the WHOLE bundle group together (a plain single-channel
@@ -53,9 +55,8 @@ async function sweepExpiredSubscriptions(telegram) {
     try {
       await telegram.sendMessage(
         userId,
-        `⌛ Your access to <b>${titleList}</b> has expired and you've been removed.\n\n` +
-        `Tap below to renew and get fresh join link(s) instantly.`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[btnSuccess('🔁 Renew', 'menu_plans')]]) }
+        t(userId, 'expired_msg', { titles: escapeHtml(titleList) }),
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[btnSuccess(t(userId, 'btn_renew_now'), 'menu_plans')]]) }
       );
     } catch (err) {
       console.error(`[subscriptionExpiry] notify failed for user ${userId}:`, err.message);

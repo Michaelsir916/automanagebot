@@ -19,6 +19,22 @@ const btnPrimary = (text, data) => styledButton(text, data, 'primary');  // blue
 const btnSuccess = (text, data) => styledButton(text, data, 'success');  // green - buy / confirm / activate
 const btnDanger = (text, data) => styledButton(text, data, 'danger');    // red - delete / revoke / kick / deactivate
 
+// Standard footer used on every sub-screen so Back / Home are always in the
+// same place. back = callback_data of the previous screen.
+function navRow(back, backLabel = '⬅️ Back', homeLabel = '🏠 Home', homeData = 'menu_main') {
+  const row = [];
+  if (back) row.push(btn(backLabel, back));
+  row.push(btn(homeLabel, homeData));
+  return row;
+}
+
+// Pack buttons into rows of `perRow`.
+function grid(buttons, perRow = 2) {
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += perRow) rows.push(buttons.slice(i, i + perRow));
+  return rows;
+}
+
 // Buttons attached to admin alerts about a misused/unauthorized join.
 // linkId is optional - only paid links we can identify get a refund button.
 function misuseActionButtons(userId, linkId) {
@@ -29,4 +45,4 @@ function misuseActionButtons(userId, linkId) {
   return Markup.inlineKeyboard(rows);
 }
 
-module.exports = { styledButton, btn, btnPrimary, btnSuccess, btnDanger, misuseActionButtons };
+module.exports = { styledButton, btn, btnPrimary, btnSuccess, btnDanger, navRow, grid, misuseActionButtons };

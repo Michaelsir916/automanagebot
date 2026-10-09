@@ -36,6 +36,7 @@ function start(channelId, userId, chatId, linkId, durationDays, opts = {}) {
     chatId,
     linkId,
     autoRenew: false,
+    flags: {},
     startedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     status: 'active'
@@ -122,6 +123,7 @@ function renewGroup(groupId, durationDays) {
     if (s.groupId === groupId && s.status === 'active') {
       const base = new Date(s.expiresAt) > now ? new Date(s.expiresAt) : now;
       s.expiresAt = new Date(base.getTime() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+      s.flags = {}; // new period -> reminders may fire again
       touched.push(s);
     }
   });
@@ -144,7 +146,58 @@ function listGroupsDueForRenewal(windowMs, now = new Date()) {
   return Array.from(seen.values());
 }
 
+function listAll() {
+  return Object.values(loadAll().subscriptions);
+}
+
+// Mark a one-time notification as sent for every member of a group
+// (e.g. 'remind_3', 'remind_1', 'winback_3', 'winback_7').
+function setGroupFlag(groupId, flag, value = true) {
+  const data = loadAll();
+  Object.values(data.subscriptions).forEach(s => {
+    if (s.groupId === groupId) {
+      s.flags = s.flags || {};
+      s.flags[flag] = value;
+    }
+  });
+  saveAll(data);
+}
+
+// Distinct groups (one row per purchase) with their members' common info.
+function listGroups() {
+  const seen = new Map();
+  listAll().forEach(s => {
+    if (!seen.has(s.groupId)) {
+      seen.set(s.groupId, {
+        groupId: s.groupId, planId: s.planId, userId: s.userId,
+        status: s.status, autoRenew: !!s.autoRenew, expiresAt: s.expiresAt,
+        flags: s.flags || {}, channelIds: [s.channelId]
+      });
+    } else {
+      seen.get(s.groupId).channelIds.push(s.channelId);
+    }
+  });
+  return Array.from(seen.values());
+}
+
+// The user's currently ACTIVE purchase of this exact plan, if any - lets a
+// repeat purchase extend it instead of creating a duplicate that would
+// overwrite the remaining days.
+function findActiveGroupByPlan(userId, planId) {
+  const now = new Date();
+  return listGroups().find(g =>
+    String(g.userId) === String(userId) && g.planId === planId &&
+    g.status === 'active' && new Date(g.expiresAt) > now
+  ) || null;
+}
+
+// Has this user EVER held this plan (any status)? Used for renewal discount.
+function hasHadPlan(userId, planId) {
+  return listAll().some(s => String(s.userId) === String(userId) && s.planId === planId);
+}
+
 module.exports = {
   start, startGroup, get, markExpired, listActiveExpired, listByUser,
-  listByGroup, setAutoRenew, setGroupAutoRenew, renewGroup, listGroupsDueForRenewal
+  listByGroup, setAutoRenew, setGroupAutoRenew, renewGroup, listGroupsDueForRenewal,
+  listAll, setGroupFlag, listGroups, findActiveGroupByPlan, hasHadPlan
 };

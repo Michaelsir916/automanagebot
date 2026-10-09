@@ -58,4 +58,27 @@ function listUsersWithRecharge() {
     .map(([id]) => id);
 }
 
-module.exports = { getWallet, getBalance, addTransaction, canAfford, listUsersWithRecharge };
+function hasChargeId(userId, chargeId) {
+  if (!chargeId) return false;
+  const w = loadAll().wallets[String(userId)];
+  return !!w && w.transactions.some(t => t.telegramPaymentChargeId === chargeId);
+}
+
+function listAll() {
+  const data = loadAll();
+  return Object.entries(data.wallets).map(([userId, w]) => ({ userId, ...w }));
+}
+
+// Atomic check-and-debit: returns the updated wallet, or null if the balance
+// is too low. Doing the check and the debit in ONE synchronous step means a
+// double-tap can never spend the same balance twice.
+function tryDebit(userId, amount, type, meta = {}) {
+  const data = loadAll();
+  const key = String(userId);
+  const w = data.wallets[key];
+  const bal = w ? w.balance : 0;
+  if (bal < amount) return null;
+  return addTransaction(userId, -amount, type, meta);
+}
+
+module.exports = { getWallet, getBalance, addTransaction, canAfford, listUsersWithRecharge, listAll, tryDebit, hasChargeId };

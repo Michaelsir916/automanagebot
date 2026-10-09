@@ -1,9 +1,14 @@
+const { Markup } = require('telegraf');
+const { btn } = require('../utils/keyboards');
 const subscriptionsDb = require('../db/subscriptions');
 const plansDb = require('../db/plans');
 const walletsDb = require('../db/wallets');
 const adminsDb = require('../db/admins');
 const config = require('../config');
 const { notifyAdmins } = require('../utils/notify');
+const { renewalPrice } = require('../services/pricing');
+const { t } = require('../utils/i18n');
+const { escapeHtml, fmtDay } = require('../utils/format');
 
 // NOTE on design: real Telegram Stars "subscription" invoices auto-charge
 // on Telegram's own billing cycle - a bot can't reach in and trigger one on
@@ -12,13 +17,6 @@ const { notifyAdmins } = require('../utils/notify');
 // the plan's price when a subscription is about to expire. This is
 // consistent with how every other purchase in this bot works, and it's the
 // only way a *bot-initiated* recurring charge is actually possible.
-function priceForRenewal(plan, userId) {
-  if (adminsDb.isAdmin(userId) && plan.testPrice !== undefined && plan.testPrice !== null) {
-    return plan.testPrice;
-  }
-  return plan.price;
-}
-
 async function processDueRenewals(telegram) {
   const intervalMs = Math.max(1, config.AUTO_RENEW_CHECK_INTERVAL_MINUTES) * 60 * 1000;
   const due = subscriptionsDb.listGroupsDueForRenewal(intervalMs, new Date());
@@ -35,7 +33,7 @@ async function processDueRenewals(telegram) {
       continue;
     }
 
-    const price = priceForRenewal(plan, userId);
+    const price = renewalPrice(plan, userId); // same price rules as the plan screen (renewal discount, admin test price)
     const balance = walletsDb.getBalance(userId);
 
     if (balance < price) {
@@ -43,9 +41,8 @@ async function processDueRenewals(telegram) {
       try {
         await telegram.sendMessage(
           userId,
-          `⚠️ Auto-renew for <b>${plan.title}</b> failed - your wallet balance (${balance}⭐) is below the price (${price}⭐).\n\n` +
-          `Auto-renew has been turned off. Recharge your wallet and use the 🔁 Renew button when it expires to unlock access again.`,
-          { parse_mode: 'HTML' }
+          t(userId, 'autorenew_failed', { title: escapeHtml(plan.title), balance, price }),
+          { parse_mode: 'HTML', ...Markup.inlineKeyboard([[btn(t(userId, 'btn_wallet'), 'menu_wallet')]]) }
         );
       } catch (err) {
         console.error(`[autoRenew] notify (insufficient balance) failed for ${userId}:`, err.message);
@@ -54,12 +51,15 @@ async function processDueRenewals(telegram) {
     }
 
     walletsDb.addTransaction(userId, -price, 'plan_auto_renew', { planId: plan.id, planTitle: plan.title });
-    subscriptionsDb.renewGroup(groupId, plan.durationDays);
+    const renewed = subscriptionsDb.renewGroup(groupId, plan.durationDays);
 
     try {
       await telegram.sendMessage(
         userId,
-        `🔁 Auto-renewed <b>${plan.title}</b> for ${price}⭐. Your access continues without interruption.`,
+        t(userId, 'autorenew_ok', {
+          title: escapeHtml(plan.title), price,
+          date: fmtDay(renewed.length ? renewed[0].expiresAt : new Date())
+        }),
         { parse_mode: 'HTML' }
       );
     } catch (err) {

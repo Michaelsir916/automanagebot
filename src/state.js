@@ -36,7 +36,14 @@ function getRelayAdmin(userId) {
   return relayByUser.get(String(userId)) || null;
 }
 
+// Coupon the user has typed in for a specific plan (applied at checkout).
+const pendingCoupon = new Map(); // `${userId}:${planId}` -> code
+function setCoupon(userId, planId, code) { pendingCoupon.set(`${userId}:${planId}`, code); }
+function getCoupon(userId, planId) { return pendingCoupon.get(`${userId}:${planId}`) || null; }
+function clearCoupon(userId, planId) { pendingCoupon.delete(`${userId}:${planId}`); }
+
 module.exports = {
+  setCoupon, getCoupon, clearCoupon,
   setState, getState, clearState,
   startRelay, endRelay, getRelayTarget, getRelayAdmin
 };
