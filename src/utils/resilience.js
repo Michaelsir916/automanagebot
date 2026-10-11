@@ -130,7 +130,7 @@ function resilience() {
         const started = inFlight.get(key);
         if (started && Date.now() - started < LOCK_MAX_MS) {
           // Same button, same user, still processing -> ignore the repeat.
-          ctx.telegram.answerCbQuery(ctx.callbackQuery.id, '⏳ Processing… / ദയവായി കാത്തിരിക്കൂ', { show_alert: false }).catch(() => {});
+          ctx.telegram.answerCbQuery(ctx.callbackQuery.id, '⏳ Processing… please wait', { show_alert: false }).catch(() => {});
           return;
         }
         inFlight.set(key, Date.now());

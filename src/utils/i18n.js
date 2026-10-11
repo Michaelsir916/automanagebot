@@ -1,305 +1,11 @@
-// All USER-facing text lives here in two languages: 'ml' (Malayalam, default)
-// and 'en'. Admin screens stay English on purpose.
+// All USER-facing text lives here (English). Keeping it in one file makes
+// it easy to reword or translate later.
 //
 // Usage: t(userIdOrLang, 'key', { name: 'x' })  ->  string
 // {placeholders} are replaced from the vars object. Values that go into
 // HTML messages must already be escaped by the caller.
 
-const usersDb = require('../db/users');
-
 const S = {
-  ml: {
-    // ---- common ----
-    back: '⬅️ തിരികെ',
-    home: '🏠 ഹോം',
-    cancel: '❌ റദ്ദാക്കുക',
-    confirm: '✅ സ്ഥിരീകരിക്കുക',
-    loading: '⏳ ലോഡ് ചെയ്യുന്നു…',
-    processing: '⏳ പ്രോസസ് ചെയ്യുന്നു… ദയവായി കാത്തിരിക്കൂ',
-    err_generic: '⚠️ എന്തോ കുഴപ്പം പറ്റി. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കൂ.',
-    err_slow: '⚠️ നെറ്റ്‌വർക്ക് സ്ലോ ആണ്. ഒരു നിമിഷം കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കൂ. നിങ്ങളുടെ ⭐ നഷ്ടപ്പെട്ടിട്ടില്ല.',
-    banned: '🚫 നിങ്ങളെ ഈ സേവനത്തിൽ നിന്ന് ബാൻ ചെയ്തിരിക്കുന്നു. തെറ്റാണെന്ന് തോന്നിയാൽ Support-നെ ബന്ധപ്പെടുക.',
-    maintenance: '🛠 ബോട്ട് അപ്ഡേറ്റ് ചെയ്യുകയാണ്. കുറച്ച് മിനിറ്റ് കഴിഞ്ഞ് വീണ്ടും വരൂ.',
-    unavailable: 'ഇത് ഇപ്പോൾ ലഭ്യമല്ല.',
-
-    // ---- start / menu ----
-    welcome:
-      '👋 സ്വാഗതം, {name}!\n\n' +
-      'Telegram Stars ⭐ ഉപയോഗിച്ച് പ്രൈവറ്റ് ചാനലുകളിലേക്ക് ആക്സസ് വാങ്ങാം.\n\n' +
-      '1️⃣ Plans നോക്കി തിരഞ്ഞെടുക്കൂ\n' +
-      '2️⃣ Wallet-ൽ നിന്ന് പേയ്മെന്റ് ചെയ്യൂ — join link ഉടൻ കിട്ടും\n' +
-      '3️⃣ ആ link നിങ്ങൾക്ക് മാത്രം ഉപയോഗിക്കാം\n\n' +
-      'താഴെയുള്ള ബട്ടണുകൾ ഉപയോഗിക്കൂ 👇',
-    welcome_ref: '\n\n🎁 നിങ്ങളെ ഒരു സുഹൃത്ത് ക്ഷണിച്ചതാണ്. ആദ്യത്തെ recharge ചെയ്യുമ്പോൾ അദ്ദേഹത്തിന് ബോണസ് കിട്ടും.',
-    menu_title: '🏠 <b>മെയിൻ മെനു</b>',
-    menu_expiring: '⏳ {title}: <b>{left}</b> ബാക്കി',
-    btn_plans: '🛒 Plans',
-    btn_channels: '📢 Channels',
-    btn_wallet: '💰 Wallet',
-    btn_account: '👤 My Account',
-    btn_help: '❓ Help / Support',
-    btn_admin: '⚙️ Admin Panel',
-    btn_lang: '🌐 English',
-
-    // ---- account ----
-    account_title:
-      '👤 <b>My Account</b>\n\n' +
-      '🆔 ID: <code>{id}</code>\n' +
-      '💰 Balance: <b>{balance} ⭐</b>\n' +
-      '📅 ചേർന്നത്: {joined}\n\n' +
-      '{subs}',
-    account_no_subs: '📭 ആക്റ്റീവ് subscription ഒന്നുമില്ല.',
-    account_subs_head: '📜 <b>ആക്റ്റീവ് subscriptions</b>',
-    account_sub_line: '• {title}\n   ⏳ {expires} ({left} ബാക്കി) · 🔁 {auto}',
-    btn_referral: '🎁 Refer & Earn',
-    btn_my_subs: '📜 My Subscriptions',
-    on: 'ON ✅',
-    off: 'OFF',
-
-    // ---- wallet ----
-    wallet_title:
-      '💰 <b>നിങ്ങളുടെ Wallet</b>\n\n' +
-      'Balance: <b>{balance} ⭐</b>{extra}',
-    wallet_recent: '\n\n🕒 അവസാന ഇടപാട്: {line}',
-    btn_recharge: '➕ Recharge',
-    btn_history: '📜 History',
-    btn_gift: '🎁 Gift',
-    btn_upi: '🇮🇳 UPI വഴി Recharge',
-    recharge_title:
-      '➕ <b>Recharge</b>\n\nതുക തിരഞ്ഞെടുക്കൂ. വലിയ പാക്കേജിൽ കൂടുതൽ ബോണസ് 🎁\n\n' +
-      'Balance: <b>{balance} ⭐</b>',
-    btn_custom: '✏️ വേറെ തുക',
-    pkg_label: '{popular}{stars} ⭐{bonus}',
-    pkg_bonus: ' +{pct}%',
-    pkg_popular: '🔥 ',
-    custom_prompt: 'ആവശ്യമുള്ള Stars ⭐ എണ്ണം അയക്കൂ (ഉദാ: 150):',
-    invalid_amount: '❌ തെറ്റായ തുക. ഒരു പൂർണ്ണസംഖ്യ അയക്കൂ.',
-    invoice_title: 'Wallet Recharge',
-    invoice_desc: 'നിങ്ങളുടെ ബോട്ട് wallet-ലേക്ക് {amount} Stars ചേർക്കുക',
-    invoice_label: '{amount} Stars',
-    invoice_failed: '⚠️ Invoice ഉണ്ടാക്കാൻ പറ്റിയില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കൂ.',
-    invoice_sent: '🧾 താഴെ വന്ന invoice-ൽ "Pay" അമർത്തി പേയ്മെന്റ് പൂർത്തിയാക്കൂ.',
-    receipt_recharge:
-      '🧾 <b>Receipt</b>\n\n' +
-      '✅ Recharge വിജയകരം\n' +
-      '🔖 ID: <code>{id}</code>\n' +
-      '➕ ചേർത്തത്: <b>{stars} ⭐</b>{bonus}\n' +
-      '💰 പുതിയ Balance: <b>{balance} ⭐</b>\n' +
-      '📅 {date}',
-    receipt_bonus: '\n🎁 ബോണസ്: <b>+{bonus} ⭐</b> ({pct}%)',
-    referral_rewarded_notify: '🎉 നിങ്ങൾ ക്ഷണിച്ച {name} ആദ്യ recharge ചെയ്തു! നിങ്ങൾക്ക് <b>+{stars} ⭐</b> ബോണസ് കിട്ടി.',
-
-    // ---- history ----
-    history_title: '📜 <b>ഇടപാടുകൾ</b> ({filter}) — പേജ് {page}/{pages}\n\n{lines}',
-    history_empty: 'ഇടപാടുകൾ ഒന്നുമില്ല.',
-    f_all: 'എല്ലാം',
-    f_recharge: 'Recharge',
-    f_spent: 'ചെലവ്',
-    f_gift: 'Gift',
-    btn_prev: '◀️ മുമ്പത്തേത്',
-    btn_next: 'അടുത്തത് ▶️',
-    txn_recharge: 'Recharge',
-    txn_bonus: 'ബോണസ്',
-    txn_plan_purchase: 'Plan വാങ്ങൽ',
-    txn_channel_unlock: 'Channel unlock',
-    txn_plan_auto_renew: 'Auto-renew',
-    txn_plan_renew: 'Renew',
-    txn_gift_sent: 'Gift അയച്ചത്',
-    txn_gift_received: 'Gift കിട്ടിയത്',
-    txn_refund: 'Refund',
-    txn_plan_purchase_refund: 'Refund',
-    txn_admin_adjust: 'Admin adjust',
-    txn_referral_reward: 'Referral ബോണസ്',
-    txn_upi_recharge: 'UPI recharge',
-
-    // ---- gift ----
-    gift_ask_user: 'Gift ലഭിക്കേണ്ട ആളുടെ Telegram numeric ID അയക്കൂ:',
-    gift_invalid_user: '❌ ഇത് ശരിയായ ID അല്ല. അക്കങ്ങൾ മാത്രം അയക്കൂ.',
-    gift_self: '❌ സ്വന്തം അക്കൗണ്ടിലേക്ക് gift അയക്കാൻ പറ്റില്ല.',
-    gift_unknown_user: '❌ ഈ ID ബോട്ട് ഉപയോഗിച്ചിട്ടില്ല. അവർ ആദ്യം ബോട്ടിൽ /start അമർത്തണം.',
-    gift_ask_amount: 'എത്ര ⭐ gift ചെയ്യണം?',
-    gift_insufficient: '❌ Balance മതിയാകില്ല. നിങ്ങളുടെ കയ്യിൽ {balance}⭐ ഉണ്ട്.',
-    gift_confirm: '🎁 <b>Gift സ്ഥിരീകരിക്കൂ</b>\n\nആർക്ക്: <code>{to}</code>\nതുക: <b>{amount} ⭐</b>\nBalance after: {after} ⭐',
-    gift_done: '🎁 {amount}⭐ gift അയച്ചു (user {to}).',
-    gift_received: '🎁 നിങ്ങൾക്ക് {amount}⭐ gift കിട്ടി! Wallet balance നോക്കൂ.',
-
-    // ---- plans ----
-    plans_title: '🎟 <b>Plans</b>\n\nSingle channel plan അല്ലെങ്കിൽ പണം ലാഭിക്കുന്ന bundle തിരഞ്ഞെടുക്കൂ.',
-    btn_single_plans: '🎟 Single Channel Plans',
-    btn_bundles: '📦 Bundles',
-    btn_trial: '🎁 Free/Trial Plans',
-    no_single_plans: 'ഇപ്പോൾ single-channel plans ഒന്നുമില്ല.',
-    no_bundles: 'ഇപ്പോൾ bundles ഒന്നുമില്ല.',
-    no_channel_plans: 'ഈ channel-ന് ഇപ്പോൾ plans ഇല്ല.',
-    choose_channel: '📢 Channel തിരഞ്ഞെടുക്കൂ:',
-    channel_plans_title: '📢 <b>{title}</b> — ലഭ്യമായ plans:',
-    bundles_title: '📦 ലഭ്യമായ bundles:',
-    plan_card:
-      '{icon} <b>{title}</b>{trial}\n\n' +
-      '{desc}' +
-      '📢 ഉൾപ്പെടുന്നത്: {channels}\n' +
-      '⏱ കാലാവധി: <b>{duration}</b>\n\n' +
-      '{priceBlock}\n' +
-      '💰 നിങ്ങളുടെ Balance: <b>{balance} ⭐</b>',
-    price_plain: '💵 വില: <b>{price} ⭐</b>',
-    price_discount:
-      '💵 വില: <s>{base} ⭐</s>\n' +
-      '{lines}' +
-      '✅ നിങ്ങൾ നൽകേണ്ടത്: <b>{final} ⭐</b>',
-    disc_renew: '🔁 Renewal discount: −{off} ⭐\n',
-    disc_coupon: '🎟 Coupon <code>{code}</code>: −{off} ⭐\n',
-    trial_tag: ' 🎁 <i>Trial (ഒരാൾക്ക് ഒരു തവണ)</i>',
-    btn_unlock: '🔓 Unlock ({price}⭐)',
-    btn_renew_extend: '🔁 Renew ({price}⭐)',
-    btn_coupon: '🎟 Coupon ഉണ്ടോ?',
-    btn_remove_coupon: '🗑 Coupon ഒഴിവാക്കുക',
-    btn_recharge_now: '💰 Wallet Recharge',
-    plan_unavailable: 'ഈ plan ഇപ്പോൾ ലഭ്യമല്ല.',
-    trial_used: '🎁 ഈ trial നിങ്ങൾ ഇതിനകം ഉപയോഗിച്ചു കഴിഞ്ഞു.',
-    insufficient: '❌ Balance മതിയാകില്ല.\n\nആവശ്യം: <b>{price} ⭐</b> · നിങ്ങളുടെ കയ്യിൽ: <b>{balance} ⭐</b>\nകുറവ്: <b>{short} ⭐</b>',
-    confirm_title:
-      '🧾 <b>വാങ്ങൽ സ്ഥിരീകരിക്കൂ</b>\n\n' +
-      '{icon} {title}\n' +
-      '⏱ {duration}\n' +
-      '{lines}' +
-      '💵 തുക: <b>{final} ⭐</b>\n' +
-      '💰 ഇപ്പോഴത്തെ Balance: {balance} ⭐\n' +
-      '➡️ വാങ്ങിയ ശേഷം: <b>{after} ⭐</b>\n\n' +
-      '{note}',
-    confirm_note_new: 'സ്ഥിരീകരിച്ചാൽ join link(s) ഉടൻ കിട്ടും.',
-    confirm_note_extend: 'ഇത് നിലവിലുള്ള subscription-ന്റെ കാലാവധി നീട്ടും (പുതിയ link വേണ്ട, ബാക്കി ദിവസങ്ങൾ നഷ്ടമാകില്ല).',
-    unlocked:
-      '✅ <b>{title}</b> അൺലോക്ക് ആയി!\n\n{links}\n{expiry}\n' +
-      '⚠️ ഈ link(s) <b>നിങ്ങൾക്ക് മാത്രം</b>. ഓരോന്നും തുറന്ന് join request അയക്കൂ — ഉടൻ approve ആകും.',
-    expiry_line: '\n⏳ <b>{date}</b> വരെ ആക്സസ്. അതിനു ശേഷം renew ചെയ്തില്ലെങ്കിൽ ഓട്ടോമാറ്റിക്കായി നീക്കം ചെയ്യും.\n',
-    lifetime_line: '\n♾ Lifetime ആക്സസ് — expiry ഇല്ല.\n',
-    extended:
-      '✅ <b>{title}</b> renew ആയി!\n\n' +
-      '⏳ പുതിയ കാലാവധി: <b>{date}</b>\n' +
-      'നിങ്ങൾ ഇതിനകം channel-ൽ ഉള്ളതിനാൽ പുതിയ link ആവശ്യമില്ല.',
-    receipt_purchase:
-      '\n\n🧾 <b>Receipt</b>\n🔖 <code>{id}</code>\n💵 {amount} ⭐ · Balance: {balance} ⭐\n📅 {date}',
-    purchase_failed: '⚠️ Link ഉണ്ടാക്കുന്നതിൽ പ്രശ്നം. തുക നിങ്ങളുടെ wallet-ലേക്ക് തിരികെ ചേർത്തിട്ടുണ്ട് — വീണ്ടും ശ്രമിക്കൂ.',
-    no_channels_in_plan: '⚠️ ഈ plan-ലെ channels ഇപ്പോൾ ലഭ്യമല്ല. Support-നെ ബന്ധപ്പെടൂ — നിങ്ങൾക്ക് ⭐ നഷ്ടമായിട്ടില്ല.',
-    btn_enable_auto: '🔁 Auto-Renew ON',
-    btn_disable_auto: '🔁 Auto-Renew OFF',
-
-    // ---- channels ----
-    channels_title: '📢 ലഭ്യമായ Channels:',
-    no_channels: 'ഇപ്പോൾ channels ഒന്നുമില്ല. പിന്നീട് വരൂ.',
-    channel_card:
-      '📢 <b>{title}</b>\n\n{desc}' +
-      '💵 വില: <b>{price} ⭐</b>\n{duration}' +
-      '💰 Balance: <b>{balance} ⭐</b>\n\n' +
-      'Unlock ചെയ്താൽ നിങ്ങൾക്ക് മാത്രമുള്ള ഒരു join link കിട്ടും.',
-    channel_duration: '⏱ കാലാവധി: <b>{days} ദിവസം</b>\n',
-    channel_unavailable: 'ഈ channel ഇപ്പോൾ ലഭ്യമല്ല.',
-    btn_unlock_channel: '🔓 Unlock Access',
-    channel_unlocked:
-      '✅ <b>{title}</b> അൺലോക്ക് ആയി!\n\n🔗 നിങ്ങളുടെ join link:\n{link}\n{expiry}\n' +
-      '⚠️ ഈ link <b>നിങ്ങൾക്ക് മാത്രം</b>. തുറന്ന് join request അയക്കൂ — ഉടൻ approve ആകും.',
-    channel_unlock_failed: '⚠️ Link ഉണ്ടാക്കുന്നതിൽ പ്രശ്നം. നിങ്ങളിൽ നിന്ന് തുക എടുത്തിട്ടില്ല. വീണ്ടും ശ്രമിക്കൂ.',
-
-    // ---- subscriptions ----
-    subs_none: '📭 ആക്റ്റീവ് subscription ഒന്നുമില്ല.',
-    subs_title: '📜 <b>My Subscriptions</b>',
-    sub_card: '📢 <b>{titles}</b>\n⏳ കാലാവധി: {expires}\n⌛ ബാക്കി: <b>{left}</b>\n🔁 Auto-renew: {auto}',
-    autorenew_on_msg: '🔁 Auto-renew ON.\n\nExpiry-ക്ക് തൊട്ടുമുമ്പ് നിങ്ങളുടെ wallet-ൽ നിന്ന് ഈ plan-ന്റെ വില ഓട്ടോമാറ്റിക്കായി എടുക്കും. Balance മതിയായി സൂക്ഷിക്കൂ!',
-    autorenew_off_msg: '🔁 Auto-renew OFF.',
-
-    // ---- coupons ----
-    coupon_ask: '🎟 നിങ്ങളുടെ coupon code അയക്കൂ:',
-    coupon_applied: '✅ Coupon <code>{code}</code> ചേർത്തു!',
-    coupon_removed: 'Coupon ഒഴിവാക്കി.',
-    coupon_not_found: '❌ ഈ code ശരിയല്ല.',
-    coupon_inactive: '❌ ഈ coupon ഇപ്പോൾ ആക്റ്റീവ് അല്ല.',
-    coupon_expired: '❌ ഈ coupon-ന്റെ കാലാവധി കഴിഞ്ഞു.',
-    coupon_used_up: '❌ ഈ coupon പരമാവധി ഉപയോഗിച്ചു കഴിഞ്ഞു.',
-    coupon_not_yours: '❌ ഈ coupon നിങ്ങൾക്കുള്ളതല്ല.',
-    coupon_already_used: '❌ ഈ coupon നിങ്ങൾ ഇതിനകം ഉപയോഗിച്ചു.',
-    coupon_wrong_plan: '❌ ഈ coupon ഈ plan-ന് ബാധകമല്ല.',
-
-    // ---- reminders / expiry / winback ----
-    remind_days:
-      '⏰ <b>{title}</b> — ആക്സസ് <b>{left}</b> കഴിഞ്ഞാൽ തീരും ({date}).\n\nഇപ്പോൾ renew ചെയ്താൽ ബാക്കി ദിവസങ്ങൾ നഷ്ടമാകില്ല.{discount}{warn}',
-    remind_discount: '\n🔁 Renewal discount: <b>{pct}%</b>',
-    remind_warn_balance: '\n\n⚠️ Auto-renew ON ആണ്, പക്ഷേ Balance ({balance}⭐) വിലയേക്കാൾ ({price}⭐) കുറവാണ്. Recharge ചെയ്യൂ.',
-    btn_renew_now: '🔁 ഇപ്പോൾ Renew',
-    expired_msg: '⌛ <b>{titles}</b> ആക്സസ് കഴിഞ്ഞു, നിങ്ങളെ നീക്കം ചെയ്തു.\n\nതാഴെ അമർത്തി renew ചെയ്താൽ പുതിയ join link ഉടൻ കിട്ടും.',
-    autorenew_failed:
-      '⚠️ <b>{title}</b> auto-renew പരാജയപ്പെട്ടു — Balance ({balance}⭐) വിലയേക്കാൾ ({price}⭐) കുറവ്.\n\n' +
-      'Auto-renew ഓഫ് ആക്കി. Recharge ചെയ്ത് 🔁 Renew അമർത്തൂ.',
-    autorenew_ok: '🔁 <b>{title}</b> auto-renew ആയി ({price}⭐). ആക്സസ് തുടരുന്നു.\n⏳ പുതിയ കാലാവധി: {date}',
-    winback_3:
-      '👋 നിങ്ങളെ ഞങ്ങൾക്ക് മിസ്സ് ചെയ്യുന്നു!\n\n<b>{title}</b> കഴിഞ്ഞിട്ട് കുറച്ച് ദിവസമായി. തിരികെ വരാൻ ഒരു സ്പെഷ്യൽ ഓഫർ:\n\n' +
-      '🎟 Code: <code>{code}</code> — <b>{pct}% OFF</b>\n⏳ {date} വരെ, നിങ്ങൾക്ക് മാത്രം.',
-    winback_7: '⏳ അവസാന ഓർമ്മപ്പെടുത്തൽ: നിങ്ങളുടെ <b>{pct}% OFF</b> coupon <code>{code}</code> {date}-ന് തീരും.',
-
-    // ---- help / faq / support ----
-    help_title: '❓ <b>Help</b>\n\nസാധാരണ ചോദ്യങ്ങൾ തിരഞ്ഞെടുക്കൂ, അല്ലെങ്കിൽ ഞങ്ങളോട് നേരിട്ട് സംസാരിക്കൂ.',
-    faq_1_q: '💸 ⭐ പോയി, പക്ഷേ ആക്സസ് കിട്ടിയില്ല',
-    faq_1_a:
-      '1) Plans → My Subscriptions-ൽ നിങ്ങളുടെ plan ഉണ്ടോ എന്ന് നോക്കൂ.\n' +
-      '2) ഉണ്ടെങ്കിൽ join link വീണ്ടും തുറന്ന് "Request to join" അമർത്തൂ.\n' +
-      '3) ഇല്ലെങ്കിൽ / link പ്രവർത്തിക്കുന്നില്ലെങ്കിൽ "Support-നെ ബന്ധപ്പെടുക" അമർത്തൂ — ഉടൻ പരിഹരിക്കാം.',
-    faq_2_q: '🔗 എന്റെ link expire ആയി / പ്രവർത്തിക്കുന്നില്ല',
-    faq_2_a:
-      'ഓരോ link-ഉം നിങ്ങൾക്ക് മാത്രമുള്ളതും ഒരു തവണ മാത്രം ഉപയോഗിക്കാവുന്നതുമാണ്. ഇതിനകം join ചെയ്തെങ്കിൽ link പിന്നെ പ്രവർത്തിക്കില്ല. ' +
-      'Join ചെയ്യാതെ link പ്രവർത്തിക്കുന്നില്ലെങ്കിൽ Support-ൽ അറിയിക്കൂ.',
-    faq_3_q: '🔁 എങ്ങനെ renew ചെയ്യാം?',
-    faq_3_a:
-      'Plans → My Subscriptions-ൽ "Renew" അമർത്തൂ. Wallet-ൽ balance വേണം. ' +
-      'Expiry-ക്ക് മുമ്പ് renew ചെയ്താൽ ബാക്കി ദിവസങ്ങൾ നഷ്ടമാകില്ല, discount-ഉം കിട്ടും. Auto-renew ON ആക്കിയാൽ ഇതെല്ലാം ഓട്ടോമാറ്റിക്.',
-    faq_4_q: '👥 വേറെ ആൾക്ക് എന്റെ link ഉപയോഗിക്കാമോ?',
-    faq_4_a: 'ഇല്ല. Link വാങ്ങിയ ആൾക്ക് മാത്രം. മറ്റുള്ളവർ ശ്രമിച്ചാൽ ഓട്ടോമാറ്റിക്കായി reject ചെയ്യും.',
-    faq_5_q: '💰 Stars എങ്ങനെ recharge ചെയ്യാം?',
-    faq_5_a: 'Wallet → Recharge → തുക തിരഞ്ഞെടുത്ത് Telegram Stars വഴി pay ചെയ്യൂ. Stars ഇല്ലെങ്കിൽ UPI ഓപ്ഷൻ ഉണ്ടെങ്കിൽ അത് ഉപയോഗിക്കാം.',
-    btn_contact_support: '💬 Support-നെ ബന്ധപ്പെടുക',
-    support_ask: '🆘 നിങ്ങളുടെ പ്രശ്നം ഒരു സന്ദേശമായി ഇവിടെ അയക്കൂ. ഞങ്ങൾ ഇതിൽ തന്നെ മറുപടി തരും.',
-    ticket_created: '✅ Ticket <b>#{no}</b> തുറന്നു. ഞങ്ങളുടെ ടീം ഉടൻ മറുപടി തരും.',
-    ticket_appended: '➕ Ticket <b>#{no}</b>-ലേക്ക് സന്ദേശം ചേർത്തു.',
-    ticket_closed: '✅ Ticket <b>#{no}</b> പരിഹരിച്ചു അടച്ചു. വീണ്ടും പ്രശ്നമുണ്ടെങ്കിൽ പുതിയ ticket തുറക്കൂ.',
-    support_reply_prefix: '👤 <b>Support:</b> ',
-
-    // ---- referral ----
-    ref_title:
-      '🎁 <b>Refer & Earn</b>\n\n' +
-      'നിങ്ങളുടെ ലിങ്ക് സുഹൃത്തുക്കൾക്ക് അയക്കൂ. അവർ ആദ്യ recharge ചെയ്യുമ്പോൾ നിങ്ങൾക്ക് <b>{reward} ⭐</b> കിട്ടും.\n\n' +
-      '🔗 {link}\n' +
-      '🏷 Code: <code>{code}</code>\n\n' +
-      '👥 ക്ഷണിച്ചവർ: <b>{count}</b>\n' +
-      '✅ Recharge ചെയ്തവർ: <b>{rewarded}</b>\n' +
-      '💰 ആകെ നേടിയത്: <b>{earned} ⭐</b>',
-    ref_disabled: 'Referral പ്രോഗ്രാം ഇപ്പോൾ ലഭ്യമല്ല.',
-    btn_leaderboard: '🏆 Leaderboard',
-    ref_board_title: '🏆 <b>Referral Leaderboard</b>\n\n{lines}',
-    ref_board_empty: 'ഇതുവരെ ആരും ഇല്ല. ആദ്യമാകൂ! 🚀',
-    ref_board_line: '{medal} {name} — {n} ആൾക്കാർ',
-
-    // ---- UPI ----
-    upi_ask_amount: '🇮🇳 <b>UPI Recharge</b>\n\nഎത്ര രൂപ അയക്കും? (കുറഞ്ഞത് ₹{min})\n1 ₹ = <b>{rate} ⭐</b>\n\nതുക അക്കത്തിൽ അയക്കൂ:',
-    upi_invalid: '❌ ₹{min} അല്ലെങ്കിൽ അതിൽ കൂടുതൽ ഒരു പൂർണ്ണസംഖ്യ അയക്കൂ.',
-    upi_instructions:
-      '🇮🇳 <b>UPI Payment</b>\n\n' +
-      '💵 തുക: <b>₹{rupees}</b>\n' +
-      '⭐ ലഭിക്കുന്നത്: <b>{stars} ⭐</b>\n\n' +
-      '👤 പേര്: {name}\n' +
-      '🏦 UPI ID: <code>{upi}</code>\n\n' +
-      '1️⃣ മുകളിലെ UPI ID-ലേക്ക് <b>കൃത്യം ₹{rupees}</b> അയക്കൂ\n' +
-      '2️⃣ പേയ്മെന്റ് <b>screenshot</b> ഈ ചാറ്റിൽ അയക്കൂ\n' +
-      '3️⃣ Admin പരിശോധിച്ച ശേഷം ⭐ wallet-ൽ ചേരും',
-    upi_proof_received: '📨 Screenshot കിട്ടി (Ref <code>{id}</code>). Admin പരിശോധിച്ച ശേഷം അറിയിക്കാം.',
-    upi_need_photo: '📸 ദയവായി payment screenshot ഒരു ഫോട്ടോ ആയി അയക്കൂ.',
-    upi_dup_proof: '❌ ഈ screenshot മുമ്പ് ഉപയോഗിച്ചതാണ്. പുതിയത് അയക്കൂ.',
-    upi_approved: '✅ UPI payment അംഗീകരിച്ചു! <b>+{stars} ⭐</b> wallet-ൽ ചേർത്തു.',
-    upi_rejected: '❌ UPI payment (Ref <code>{id}</code>) നിരസിച്ചു. തെറ്റാണെന്ന് തോന്നിയാൽ Support-നെ ബന്ധപ്പെടൂ.',
-    upi_disabled: 'UPI recharge ഇപ്പോൾ ലഭ്യമല്ല.',
-    upi_cancelled: 'UPI recharge റദ്ദാക്കി.',
-
-    // ---- language ----
-    lang_set: '✅ ഭാഷ മലയാളത്തിലേക്ക് മാറ്റി.'
-  },
-
   en: {
     back: '⬅️ Back',
     home: '🏠 Home',
@@ -329,7 +35,6 @@ const S = {
     btn_account: '👤 My Account',
     btn_help: '❓ Help / Support',
     btn_admin: '⚙️ Admin Panel',
-    btn_lang: '🌐 മലയാളം',
 
     account_title:
       '👤 <b>My Account</b>\n\n' +
@@ -572,15 +277,14 @@ const S = {
     upi_approved: '✅ UPI payment approved! <b>+{stars} ⭐</b> added to your wallet.',
     upi_rejected: '❌ UPI payment (Ref <code>{id}</code>) was rejected. Contact support if this is a mistake.',
     upi_disabled: 'UPI recharge is not available right now.',
-    upi_cancelled: 'UPI recharge cancelled.',
-
-    lang_set: '✅ Language changed to English.'
+    upi_cancelled: 'UPI recharge cancelled.'
   }
 };
 
-function langOf(userOrLang) {
-  if (userOrLang === 'ml' || userOrLang === 'en') return userOrLang;
-  return usersDb.getLang(userOrLang);
+// English only. The first argument (user id) is kept so existing calls
+// like t(userId, 'key') keep working unchanged.
+function langOf() {
+  return 'en';
 }
 
 function t(userOrLang, key, vars = {}) {

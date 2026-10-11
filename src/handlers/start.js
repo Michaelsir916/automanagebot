@@ -13,7 +13,7 @@ function mainMenuKeyboard(userId) {
   const rows = [
     [btnPrimary(t(userId, 'btn_plans'), 'menu_plans'), btnPrimary(t(userId, 'btn_channels'), 'menu_channels')],
     [btnPrimary(t(userId, 'btn_wallet'), 'menu_wallet'), btnPrimary(t(userId, 'btn_account'), 'menu_account')],
-    [btnPrimary(t(userId, 'btn_help'), 'menu_help'), { text: t(userId, 'btn_lang'), callback_data: 'menu_lang' }]
+    [btnPrimary(t(userId, 'btn_help'), 'menu_help')]
   ];
   if (admins.isAdmin(userId)) {
     rows.push([btnPrimary(t(userId, 'btn_admin'), 'menu_admin')]);
@@ -75,13 +75,6 @@ function register(bot) {
   });
 
   bot.action('menu_main', async ctx => {
-    await ctx.reply(menuText(ctx.from.id), { parse_mode: 'HTML', ...mainMenuKeyboard(ctx.from.id) });
-  });
-
-  bot.action('menu_lang', async ctx => {
-    const current = usersDb.getLang(ctx.from.id);
-    usersDb.setLang(ctx.from.id, current === 'ml' ? 'en' : 'ml');
-    await ctx.answerCbQuery();
     await ctx.reply(menuText(ctx.from.id), { parse_mode: 'HTML', ...mainMenuKeyboard(ctx.from.id) });
   });
 }

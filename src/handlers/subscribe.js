@@ -19,7 +19,7 @@ const NO_PREVIEW = { link_preview_options: { is_disabled: true } };
 
 function durationLabel(userId, days) {
   if (!(days > 0)) return 'Lifetime ♾';
-  return usersDb.getLang(userId) === 'en' ? `${days} day(s)` : `${days} ദിവസം`;
+  return `${days} day(s)`;
 }
 
 // A laggy client can still show an old "Confirm" button after the purchase

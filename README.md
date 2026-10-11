@@ -311,7 +311,7 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ## v1.1 additions
 
-**Menus:** 2-column user menu (Plans, Channels, Wallet, My Account, Help, Language), expiry line on the home screen, Back/Home on every screen. Admin panel grouped into Payments and Members hubs with a live dashboard header.
+**Menus:** 2-column user menu (Plans, Channels, Wallet, My Account, Help), expiry line on the home screen, Back/Home on every screen. Admin panel grouped into Payments and Members hubs with a live dashboard header.
 
 **Money:** recharge bonus packages, referral rewards (paid on the referred user's first recharge), coupon codes, renewal discount, manual UPI payments with screenshot approval, receipts.
 
