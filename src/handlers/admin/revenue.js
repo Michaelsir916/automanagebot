@@ -20,20 +20,28 @@ function register(bot) {
 
     let text =
       `📊 <b>Revenue — ${label}</b>\n\n` +
-      `➕ Recharged: <b>${fmtNum(s.recharged)}⭐</b> (${s.rechargeCount} payments)\n` +
-      `   └ via UPI: ${fmtNum(s.upiStars)}⭐\n` +
-      `🛒 Spent on plans: <b>${fmtNum(s.spent)}⭐</b> (${s.spentCount} purchases)\n` +
+      `⭐ <b>Telegram Stars</b>\n` +
+      `Received: <b>${fmtNum(s.starsGross)}⭐</b> (${s.starsCount} payments)\n` +
+      `Refunded: ${fmtNum(s.starsRefunded)}⭐ (${s.starsRefundCount})\n` +
+      `Net: <b>${fmtNum(s.starsNet)}⭐</b>\n\n` +
+      `🛒 <b>Plan sales (wallet)</b>\n` +
+      `Sold: <b>${fmtNum(s.planSales)}⭐</b> (${s.newPurchases} new · ${s.renewals} renewals)\n` +
+      `Credited back: ${fmtNum(s.walletRefunds)}⭐ · Net: <b>${fmtNum(s.planSalesNet)}⭐</b>\n\n` +
+      `🇮🇳 UPI credited: ${fmtNum(s.upiCredited)}⭐ (${s.upiCount}) <i>- not Stars revenue</i>\n` +
       `🎁 Bonus given: ${fmtNum(s.bonusGiven)}⭐ · Referral paid: ${fmtNum(s.referralPaid)}⭐\n` +
-      `↩️ Refunded: ${fmtNum(s.refunded)}⭐\n` +
       `🆕 New users: ${s.newUsers}\n`;
 
     if (s.topPlans.length) {
       text += '\n🏆 <b>Top sellers</b>\n' + s.topPlans.map((p, i) => `${i + 1}. ${escapeHtml(p.name)} — ${p.n}× · ${fmtNum(p.stars)}⭐`).join('\n');
     }
+    if (s.channelBreakdown.length) {
+      text += '\n\n📢 <b>By channel</b> <i>(bundles split equally)</i>\n' +
+        s.channelBreakdown.slice(0, 8).map(c => `${escapeHtml(c.title)} — ${fmtNum(c.stars)}⭐`).join('\n');
+    }
     if (days === 7 || days === 30) {
       const keys = lastDays(Math.min(days, 7)).reverse();
       const max = Math.max(...keys.map(k => s.byDay.get(k) || 0), 0);
-      text += '\n\n📅 <b>Recharges by day</b>\n' + keys.map(k => `${k.slice(5)} ${bar(s.byDay.get(k) || 0, max)} ${fmtNum(s.byDay.get(k) || 0)}`).join('\n');
+      text += '\n\n📅 <b>Net Stars by day</b>\n' + keys.map(k => `${k.slice(5)} ${bar(Math.max(0, s.byDay.get(k) || 0), max)} ${fmtNum(s.byDay.get(k) || 0)}`).join('\n');
     }
 
     const filter = RANGES.map(([d, l]) => (d === days ? btnSuccess : btn)(l, `admin_revenue_${d}`));

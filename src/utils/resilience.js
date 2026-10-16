@@ -52,6 +52,16 @@ function retryAfterMs(err) {
   return 0;
 }
 
+// Wait before retry number `attempt` (1-based): exponential backoff with
+// jitter. Telegram's own retry_after (flood control, HTTP 429) is always
+// honoured and never shortened.
+function backoffDelayMs(attempt, err, baseMs = 700, rand = Math.random) {
+  const exp = baseMs * 2 ** (attempt - 1);
+  const jittered = Math.round(exp * (0.75 + rand() * 0.5));
+  const retryAfter = retryAfterMs(err);
+  return retryAfter ? retryAfter + Math.round(rand() * 400) : jittered;
+}
+
 // Run fn(), retrying transient failures. Never retries "real" API errors
 // (400 bad request, 403 blocked, etc.) since repeating those can't help.
 async function withRetry(fn, { tries = 4, baseMs = 700, label = '' } = {}) {
@@ -62,7 +72,7 @@ async function withRetry(fn, { tries = 4, baseMs = 700, label = '' } = {}) {
     } catch (err) {
       lastErr = err;
       if (!isTransient(err) || attempt === tries) throw err;
-      const wait = Math.max(retryAfterMs(err), baseMs * 2 ** (attempt - 1));
+      const wait = backoffDelayMs(attempt, err, baseMs);
       if (label) console.warn(`[net] ${label} failed (${errText(err).slice(0, 80)}), retry ${attempt}/${tries - 1} in ${wait}ms`);
       await sleep(wait);
     }
@@ -201,6 +211,6 @@ async function withLoading(ctx, loadingText, job, { failText = '⚠️ Network i
 }
 
 module.exports = {
-  withRetry, isTransient, isNotModified, errText, sleep,
+  withRetry, backoffDelayMs, retryAfterMs, isTransient, isNotModified, errText, sleep,
   makeAgent, patchTelegramRetry, resilience, typing, withLoading, hasInlineKeyboard
 };

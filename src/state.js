@@ -5,19 +5,40 @@
 // This intentionally resets on bot restart. Wizard steps are short-lived
 // (a few messages), and relay sessions can simply be re-started with the
 // "Message this user" button, so persistence isn't worth the complexity.
+//
+// Wizard state also expires on its own: if someone starts a guided flow and
+// walks away, the half-finished conversation is dropped after STATE_TTL_MINUTES
+// instead of capturing their next unrelated message hours later.
 
-const userState = new Map();     // userId -> { step, data }
+const TTL_MS = Math.max(1, parseFloat(process.env.STATE_TTL_MINUTES || '15')) * 60 * 1000;
+
+const userState = new Map();     // userId -> { step, data, at }
 const relayByAdmin = new Map();  // adminId -> targetUserId
 const relayByUser = new Map();   // userId  -> adminId
 
 function setState(userId, step, data = {}) {
-  userState.set(String(userId), { step, data });
+  userState.set(String(userId), { step, data, at: Date.now() });
 }
-function getState(userId) {
-  return userState.get(String(userId)) || null;
+function getState(userId, now = Date.now()) {
+  const key = String(userId);
+  const s = userState.get(key);
+  if (!s) return null;
+  if (now - s.at > TTL_MS) {
+    userState.delete(key);
+    return null;
+  }
+  return s;
 }
 function clearState(userId) {
   userState.delete(String(userId));
+}
+// Drop every expired wizard (called periodically so the Map cannot grow forever).
+function purgeExpiredStates(now = Date.now()) {
+  let removed = 0;
+  for (const [key, s] of userState) {
+    if (now - s.at > TTL_MS) { userState.delete(key); removed += 1; }
+  }
+  return removed;
 }
 
 function startRelay(adminId, targetUserId) {
@@ -44,6 +65,6 @@ function clearCoupon(userId, planId) { pendingCoupon.delete(`${userId}:${planId}
 
 module.exports = {
   setCoupon, getCoupon, clearCoupon,
-  setState, getState, clearState,
+  setState, getState, clearState, purgeExpiredStates,
   startRelay, endRelay, getRelayTarget, getRelayAdmin
 };

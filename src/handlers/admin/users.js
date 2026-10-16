@@ -134,6 +134,16 @@ function register(bot) {
     if (!adminsDb.hasPermission(ctx.from.id, 'ban')) return;
     const id = ctx.match[1];
     if (adminsDb.isAdmin(id)) return ctx.reply('❌ You cannot ban an admin.');
+    await ctx.reply(
+      `🚫 Ban user <code>${id}</code>? They will not be able to buy or recharge.`,
+      { parse_mode: 'HTML', ...Markup.inlineKeyboard([[btnDanger('Yes, ban', `admin_ubanyes_${id}`), btnPrimary('Cancel', `admin_u_${id}`)]]) }
+    );
+  });
+
+  bot.action(/^admin_ubanyes_(\d+)$/, async ctx => {
+    if (!adminsDb.hasPermission(ctx.from.id, 'ban')) return;
+    const id = ctx.match[1];
+    if (adminsDb.isAdmin(id)) return ctx.reply('❌ You cannot ban an admin.');
     bansDb.ban(id, 'banned by admin', ctx.from.id);
     auditDb.add(ctx.from.id, 'ban', `user ${id}`);
     await showUser(ctx, resolveUser(id));

@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'coupons.json');
+const FILE = path.join(DATA_DIR, 'coupons.json');
 
 // coupon: {
 //   code, type: 'percent'|'flat', value,

@@ -12,7 +12,7 @@ function register(bot) {
   // Admin taps "Message this user" on any alert -> starts a relay session
   bot.action(/contact_(\d+)/, async ctx => {
     await ctx.answerCbQuery();
-    if (!adminsDb.isAdmin(ctx.from.id)) return;
+    if (!adminsDb.hasPermission(ctx.from.id, 'support')) return;
     const targetUserId = ctx.match[1];
     startRelay(ctx.from.id, targetUserId);
     await ctx.reply(

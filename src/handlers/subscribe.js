@@ -8,7 +8,8 @@ const walletsDb = require('../db/wallets');
 const bansDb = require('../db/bans');
 const usersDb = require('../db/users');
 const couponsDb = require('../db/coupons');
-const { genId } = require('../utils/ids');
+const access = require('../services/access');
+const { creditBackToWallet } = require('../services/refunds');
 const { setState, getState, clearState, setCoupon, getCoupon, clearCoupon } = require('../state');
 const { btn, btnPrimary, btnSuccess, btnDanger, navRow } = require('../utils/keyboards');
 const { t } = require('../utils/i18n');
@@ -167,43 +168,43 @@ async function showConfirm(ctx, plan) {
 // ---------------------------------------------------------------------------
 
 // Creates invite links + subscription records for every channel of the plan.
-// Throws if Telegram fails so the caller can refund.
-async function fulfillPlanPurchase(telegram, plan, userId, pricePaid) {
-  const entries = [];
-  for (const channelId of plan.channelIds) {
-    const channel = channelsDb.getById(channelId);
-    if (!channel) continue;
-    const invite = await telegram.createChatInviteLink(channel.chatId, {
-      creates_join_request: true,
-      name: `plan-${plan.id}-${userId}-${Date.now()}`.slice(0, 32)
-    });
-    const linkRecord = linksDb.add({
-      id: genId('lnk'),
-      channelId: channel.id,
-      chatId: channel.chatId,
-      inviteLink: invite.invite_link,
-      ownerUserId: userId,
-      type: 'plan',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      createdBy: userId,
-      usedAt: null,
-      usedBy: null,
-      price: pricePaid
-    });
-    // Paying again always clears any earlier expiry block for this channel.
-    removedMembersDb.remove(channel.id, userId);
-    entries.push({ channelId: channel.id, chatId: channel.chatId, linkId: linkRecord.id, inviteLink: invite.invite_link, title: channel.title });
-  }
+// All-or-nothing: if any channel fails, every link created so far is revoked
+// and the error is thrown so the caller can refund exactly once.
+// The price is spread over the bundle's links so a per-link refund (link
+// misuse) can never pay back more than one channel's share.
+async function fulfillPlanPurchase(telegram, plan, userId, pricePaid, purchaseTxnId = null) {
+  const channels = plan.channelIds.map(id => channelsDb.getById(id)).filter(Boolean);
+  const linkPrice = channels.length ? Math.round((pricePaid / channels.length) * 100) / 100 : 0;
+  const created = [];
+  try {
+    for (const channel of channels) {
+      const { record, invite } = await access.issueLink(telegram, channel, userId, {
+        type: 'plan', price: linkPrice, namePrefix: `plan-${plan.id}`
+      });
+      created.push({ channel, record, invite });
+    }
 
-  let subs = [];
-  if (entries.length && plan.durationDays > 0) {
-    subs = subscriptionsDb.startGroup(
-      entries.map(e => ({ channelId: e.channelId, chatId: e.chatId, linkId: e.linkId })),
-      userId, plan.durationDays, plan.id
-    );
+    const entries = created.map(c => ({
+      channelId: c.channel.id, chatId: c.channel.chatId, linkId: c.record.id,
+      inviteLink: c.invite.invite_link, title: c.channel.title
+    }));
+    let subs = [];
+    if (entries.length && plan.durationDays > 0) {
+      subs = subscriptionsDb.startGroup(
+        entries.map(e => ({ channelId: e.channelId, chatId: e.chatId, linkId: e.linkId })),
+        userId, plan.durationDays, plan.id, { purchaseTxnId, pricePaid }
+      );
+    }
+    // Paying again always clears any earlier expiry block - only once everything succeeded.
+    for (const c of created) removedMembersDb.remove(c.channel.id, userId);
+    return { entries, subs };
+  } catch (err) {
+    for (const c of created) {
+      linksDb.update(c.record.id, { status: 'revoked' });
+      access.enqueueRevoke({ chatId: c.channel.chatId, inviteLink: c.invite.invite_link, linkId: c.record.id });
+    }
+    throw err;
   }
-  return { entries, subs };
 }
 
 async function doPurchase(ctx, plan) {
@@ -236,7 +237,8 @@ async function doPurchase(ctx, plan) {
   // ONE atomic check+debit. A double tap, or two devices, can never spend
   // the same balance twice.
   const debited = walletsDb.tryDebit(userId, q.final, extendGroup ? 'plan_renew' : 'plan_purchase', {
-    planId: plan.id, planTitle: plan.title, couponCode: q.coupon ? q.coupon.code : undefined
+    planId: plan.id, planTitle: plan.title, channelIds: plan.channelIds.slice(),
+    couponCode: q.coupon ? q.coupon.code : undefined
   });
   if (!debited) return showConfirm(ctx, plan); // shows the "insufficient" screen
   const txn = debited.transactions[debited.transactions.length - 1];
@@ -269,33 +271,44 @@ async function doPurchase(ctx, plan) {
   }
 
   // ----- Fresh purchase: create links -----
+  let result;
   try {
-    const { entries, subs } = await fulfillPlanPurchase(ctx.telegram, plan, userId, q.final);
-    if (entries.length === 0) {
-      walletsDb.addTransaction(userId, q.final, 'plan_purchase_refund', { planId: plan.id, reason: 'no channels available' });
-      recentBuys.delete(repeatKey);
-      return ctx.reply(t(userId, 'no_channels_in_plan'), back);
-    }
-    finishBookkeeping();
+    result = await fulfillPlanPurchase(ctx.telegram, plan, userId, q.final, txn.id);
+    if (result.entries.length === 0) throw new Error('no channels available');
+  } catch (err) {
+    console.error('[subscribe] purchase failed:', err.message);
+    // Charged but not delivered: pay back exactly once (keyed by the charge).
+    creditBackToWallet({
+      key: `purchase:${txn.id}`, userId, amount: q.final, type: 'plan_purchase_refund',
+      reason: err.message === 'no channels available' ? 'no channels available' : 'fulfillment failed',
+      meta: { planId: plan.id }
+    });
+    recentBuys.delete(repeatKey);
+    return ctx.reply(t(userId, err.message === 'no channels available' ? 'no_channels_in_plan' : 'purchase_failed'), back);
+  }
 
-    const linkLines = entries.map(e => `• <b>${escapeHtml(e.title)}</b>\n${e.inviteLink}`).join('\n\n');
-    const expiry = subs.length
-      ? t(userId, 'expiry_line', { date: fmtDate(subs[0].expiresAt) })
-      : t(userId, 'lifetime_line');
+  const { entries, subs } = result;
+  finishBookkeeping();
 
-    const rows = [];
-    if (subs.length) rows.push([btnSuccess(t(userId, 'btn_enable_auto'), `autorenew_on_${subs[0].groupId}`)]);
-    rows.push([btnPrimary(t(userId, 'btn_my_subs'), 'menu_subs'), btn(t(userId, 'home'), 'menu_main')]);
+  const linkLines = entries.map(e => `• <b>${escapeHtml(e.title)}</b>\n${e.inviteLink}`).join('\n\n');
+  const expiry = subs.length
+    ? t(userId, 'expiry_line', { date: fmtDate(subs[0].expiresAt) })
+    : t(userId, 'lifetime_line');
 
-    return ctx.reply(
+  const rows = [];
+  if (subs.length) rows.push([btnSuccess(t(userId, 'btn_enable_auto'), `autorenew_on_${subs[0].groupId}`)]);
+  rows.push([btnPrimary(t(userId, 'btn_my_subs'), 'menu_subs'), btn(t(userId, 'home'), 'menu_main')]);
+
+  // The purchase is stored. If sending the message fails the user can still
+  // get fresh links from My Subscriptions -> Access links.
+  try {
+    return await ctx.reply(
       t(userId, 'unlocked', { title: escapeHtml(plan.title), links: linkLines, expiry }) + receipt,
       { parse_mode: 'HTML', ...NO_PREVIEW, ...Markup.inlineKeyboard(rows) }
     );
   } catch (err) {
-    console.error('[subscribe] purchase failed:', err.message);
-    walletsDb.addTransaction(userId, q.final, 'plan_purchase_refund', { planId: plan.id, reason: 'fulfillment failed' });
-    recentBuys.delete(repeatKey);
-    return ctx.reply(t(userId, 'purchase_failed'), back);
+    console.error('[subscribe] could not deliver purchase message:', err.message);
+    return undefined;
   }
 }
 
@@ -338,6 +351,7 @@ function mySubsScreen(userId) {
     }));
     const row = [];
     row.push(btnSuccess(`🔁 ${i}`, `sub_renew_${groupId}`));
+    row.push(btn(`${t(userId, 'btn_get_links')} (${i})`, `sub_links_${groupId}`));
     if (members[0].planId) {
       row.push(auto
         ? btnDanger(`${t(userId, 'btn_disable_auto')} (${i})`, `subs_auto_off_${groupId}`)
@@ -505,6 +519,42 @@ function register(bot) {
         navRow('menu_subs', t(userId, 'back'), t(userId, 'home'))
       ])
     );
+  });
+
+  // Fresh owner-locked links for an active subscription (links expire, and a
+  // member who left or never joined needs a new one).
+  bot.action(/^sub_links_(\S+)$/, async ctx => {
+    const userId = ctx.from.id;
+    const now = new Date();
+    const members = subscriptionsDb.listByGroup(ctx.match[1])
+      .filter(s => String(s.userId) === String(userId) && s.status === 'active' && new Date(s.expiresAt) > now);
+    if (members.length === 0) {
+      return ctx.reply(t(userId, 'links_none'), Markup.inlineKeyboard([navRow('menu_subs', t(userId, 'back'), t(userId, 'home'))]));
+    }
+    const lines = [];
+    for (const m of members) {
+      const channel = channelsDb.getById(m.channelId);
+      if (!channel) continue;
+      const title = escapeHtml(channel.title);
+      try {
+        let isMember = false;
+        try {
+          const cm = await ctx.telegram.getChatMember(m.chatId, userId);
+          isMember = ['member', 'administrator', 'creator'].includes(cm.status);
+        } catch (e) { /* unknown -> assume not a member and issue a link */ }
+        if (isMember) { lines.push(t(userId, 'links_member', { title })); continue; }
+        access.revokePendingLinks(m.channelId, userId);
+        const { invite } = await access.issueLink(ctx.telegram, channel, userId, { type: 'plan', price: 0, namePrefix: 'relink' });
+        lines.push(`• <b>${title}</b>\n${invite.invite_link}`);
+      } catch (err) {
+        console.error('[subscribe] relink failed:', err.message);
+        lines.push(t(userId, 'links_failed', { title }));
+      }
+    }
+    await ctx.reply(t(userId, 'links_title', { lines: lines.join('\n\n') }), {
+      parse_mode: 'HTML', ...NO_PREVIEW,
+      ...Markup.inlineKeyboard([navRow('menu_subs', t(userId, 'back'), t(userId, 'home'))])
+    });
   });
 
   // Toggles from the My Subscriptions list: re-render the list.

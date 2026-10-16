@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'audit.json');
+const FILE = path.join(DATA_DIR, 'audit.json');
 const MAX_ENTRIES = 2000; // keep the file small; oldest entries roll off
 
 function add(adminId, action, detail = '') {

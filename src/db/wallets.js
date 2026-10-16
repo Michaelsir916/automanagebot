@@ -1,8 +1,9 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 const { genId } = require('../utils/ids');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'wallets.json');
+const FILE = path.join(DATA_DIR, 'wallets.json');
 
 function loadAll() {
   return readJSON(FILE, { wallets: {} });
@@ -64,6 +65,23 @@ function hasChargeId(userId, chargeId) {
   return !!w && w.transactions.some(t => t.telegramPaymentChargeId === chargeId);
 }
 
+// First transaction of this wallet matching the predicate (or null).
+function findTxn(userId, predicate) {
+  const w = loadAll().wallets[String(userId)];
+  return w ? (w.transactions.find(predicate) || null) : null;
+}
+
+function findByChargeId(userId, chargeId) {
+  if (!chargeId) return null;
+  return findTxn(userId, t => t.telegramPaymentChargeId === chargeId);
+}
+
+// True when some transaction carries meta[key] === value (used to make
+// refunds and credits idempotent across crashes and retries).
+function hasMeta(userId, key, value) {
+  return !!findTxn(userId, t => t[key] === value);
+}
+
 function listAll() {
   const data = loadAll();
   return Object.entries(data.wallets).map(([userId, w]) => ({ userId, ...w }));
@@ -81,4 +99,7 @@ function tryDebit(userId, amount, type, meta = {}) {
   return addTransaction(userId, -amount, type, meta);
 }
 
-module.exports = { getWallet, getBalance, addTransaction, canAfford, listUsersWithRecharge, listAll, tryDebit, hasChargeId };
+module.exports = {
+  getWallet, getBalance, addTransaction, canAfford, listUsersWithRecharge, listAll, tryDebit,
+  hasChargeId, findTxn, findByChargeId, hasMeta
+};

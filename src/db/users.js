@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'users.json');
+const FILE = path.join(DATA_DIR, 'users.json');
 
 // One profile per Telegram user who ever talked to the bot. Powers: user
 // search, segmented broadcast, language preference, referral codes.

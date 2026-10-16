@@ -32,13 +32,28 @@ async function maybeRewardReferrer(telegram, userId) {
 // Single entry point for "money came in": Telegram Stars invoice AND
 // approved UPI payments both go through here, so bonus, referral reward and
 // the receipt behave identically.
+//
+// Idempotent for Stars payments: when meta.telegramPaymentChargeId is given
+// and the wallet already holds that charge, no second credit is made. This is
+// what lets the payment reconciler safely "finish" a payment after a crash.
 async function creditRecharge(telegram, userId, stars, { type = 'recharge', meta = {} } = {}) {
-  let wallet = walletsDb.addTransaction(userId, stars, type, meta);
-  const txnId = wallet.transactions[wallet.transactions.length - 1].id;
+  const chargeId = meta.telegramPaymentChargeId;
+  const already = chargeId ? walletsDb.findByChargeId(userId, chargeId) : null;
+
+  let wallet;
+  let txnId;
+  if (already) {
+    txnId = already.id;
+    wallet = walletsDb.getWallet(userId);
+  } else {
+    wallet = walletsDb.addTransaction(userId, stars, type, meta);
+    txnId = wallet.transactions[wallet.transactions.length - 1].id;
+  }
 
   const pct = bonusPctFor(stars);
   const bonus = Math.floor(stars * pct / 100);
-  if (bonus > 0) {
+  const bonusDone = walletsDb.findTxn(userId, x => x.type === 'bonus' && x.for === txnId);
+  if (bonus > 0 && !bonusDone) {
     wallet = walletsDb.addTransaction(userId, bonus, 'bonus', { for: txnId, pct });
   }
 

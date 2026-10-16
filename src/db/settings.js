@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'settings.json');
+const FILE = path.join(DATA_DIR, 'settings.json');
 
 // Every tunable lives here so admins can change it from the bot (⚙️ Settings)
 // without editing code or restarting.

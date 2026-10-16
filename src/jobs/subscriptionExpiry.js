@@ -3,52 +3,55 @@ const subscriptionsDb = require('../db/subscriptions');
 const removedMembersDb = require('../db/removedMembers');
 const channelsDb = require('../db/channels');
 const config = require('../config');
+const access = require('../services/access');
 const { notifyAdmins } = require('../utils/notify');
 const { btnSuccess } = require('../utils/keyboards');
 const { t } = require('../utils/i18n');
 const { escapeHtml } = require('../utils/format');
 
 // Sweeps every "active" subscription, and for any whose expiry has passed,
-// expires + kicks the WHOLE bundle group together (a plain single-channel
+// expires the WHOLE bundle group together (a plain single-channel
 // subscription is just a "group of one", so the same code path covers both):
-//   1. Kicks the member from every channel in the group
-//   2. Marks every subscription record in the group as expired
-//   3. Adds them to the removed-members list per channel (this is what
-//      blocks a stale/leftover link from letting them back in - see
-//      joinRequest.js). They come off this list automatically the moment
-//      they unlock access again (see handlers/channels.js, handlers/subscribe.js).
-//   4. Notifies the user (with a Renew button) and the admins
-async function sweepExpiredSubscriptions(telegram) {
-  const expired = subscriptionsDb.listActiveExpired(new Date());
-  if (expired.length === 0) return;
+//   1. Queues a durable "remove member" job for every channel in the group.
+//      The job checks the member's real state, retries with backoff and
+//      survives restarts (see services/access.js and jobs/jobRunner.js), so a
+//      Telegram outage can no longer leave an expired member inside.
+//   2. Marks every subscription record in the group as expired. The jobs are
+//      queued FIRST: if the process dies in between, the next sweep finds the
+//      subscriptions still active and queues the same jobs again (deduplicated).
+//   3. Adds them to the removed-members list per channel (blocks a stale link
+//      from letting them back in - see joinRequest.js). They come off the list
+//      automatically the moment they unlock access again.
+//   4. Notifies the user (with a Renew button) and the admins.
+async function sweepExpiredSubscriptions(telegram, now = new Date()) {
+  const expired = subscriptionsDb.listActiveExpired(now);
+  if (expired.length === 0) return 0;
 
   const processedGroups = new Set();
+  let handled = 0;
 
   for (const sub of expired) {
     if (processedGroups.has(sub.groupId)) continue;
     processedGroups.add(sub.groupId);
 
     const groupMembers = subscriptionsDb.listByGroup(sub.groupId).filter(s => s.status === 'active');
+    if (groupMembers.length === 0) continue;
     const channelTitles = [];
-    let allKicked = true;
 
+    for (const member of groupMembers) {
+      access.enqueueRemoval({
+        channelId: member.channelId, chatId: member.chatId, userId: member.userId,
+        reason: 'subscription_expired', subId: member.id
+      });
+      const channel = channelsDb.getById(member.channelId);
+      channelTitles.push(channel ? channel.title : member.chatId);
+    }
     for (const member of groupMembers) {
       subscriptionsDb.markExpired(member.channelId, member.userId);
       removedMembersDb.add(member.channelId, member.userId, 'subscription_expired');
-
-      const channel = channelsDb.getById(member.channelId);
-      channelTitles.push(channel ? channel.title : member.chatId);
-
-      try {
-        await telegram.banChatMember(member.chatId, member.userId);
-        await telegram.unbanChatMember(member.chatId, member.userId); // kick, not a permanent ban
-      } catch (err) {
-        allKicked = false;
-        console.error(`[subscriptionExpiry] kick failed for user ${member.userId} in ${member.chatId}:`, err.message);
-      }
     }
+    handled += 1;
 
-    if (groupMembers.length === 0) continue;
     const userId = groupMembers[0].userId;
     const titleList = channelTitles.join(', ');
 
@@ -64,12 +67,13 @@ async function sweepExpiredSubscriptions(telegram) {
 
     await notifyAdmins(telegram,
       `⌛ <b>Subscription expired</b>\n\n` +
-      `Channels: ${titleList}\n` +
+      `Channels: ${escapeHtml(titleList)}\n` +
       `User: ${userId}\n` +
       `Expired: ${new Date(groupMembers[0].expiresAt).toLocaleString()}\n` +
-      `Action: ${allKicked ? 'Kicked automatically' : 'Kick FAILED for at least one channel — check bot permissions'}`
+      `Action: removal queued (retried automatically; you are alerted if it keeps failing)`
     );
   }
+  return handled;
 }
 
 function start(bot) {

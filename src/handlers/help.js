@@ -43,6 +43,17 @@ async function submitToTicket(ctx, text) {
 }
 
 function register(bot) {
+  // Required for bots that accept Telegram Stars: tells users how to get help
+  // with a payment. Opens the normal support-ticket flow.
+  bot.command('paysupport', async ctx => {
+    if (!ctx.chat || ctx.chat.type !== 'private') return;
+    const userId = ctx.from.id;
+    await ctx.reply(t(userId, 'paysupport'), {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([[btnPrimary(t(userId, 'btn_contact_support'), 'support_start')], [btn(t(userId, 'home'), 'menu_main')]])
+    });
+  });
+
   bot.action('menu_help', async ctx => {
     const userId = ctx.from.id;
     const rows = [];

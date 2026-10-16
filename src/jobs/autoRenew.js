@@ -50,7 +50,7 @@ async function processDueRenewals(telegram) {
       continue;
     }
 
-    walletsDb.addTransaction(userId, -price, 'plan_auto_renew', { planId: plan.id, planTitle: plan.title });
+    walletsDb.addTransaction(userId, -price, 'plan_auto_renew', { planId: plan.id, planTitle: plan.title, channelIds: plan.channelIds.slice() });
     const renewed = subscriptionsDb.renewGroup(groupId, plan.durationDays);
 
     try {

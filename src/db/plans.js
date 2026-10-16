@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'plans.json');
+const FILE = path.join(DATA_DIR, 'plans.json');
 
 // A plan is either:
 //   type: 'single' -> channelIds has exactly 1 channel

@@ -6,7 +6,7 @@ const adminsDb = require('../db/admins');
 const { withRetry } = require('../utils/resilience');
 const { fmtDate } = require('../utils/format');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const { DATA_DIR } = require('../db/dataDir');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const KEEP_LOCAL = 10;
 const FILE_NAME_RE = /^[A-Za-z0-9_-]+\.json$/;

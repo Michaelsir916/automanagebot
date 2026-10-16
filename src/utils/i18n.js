@@ -277,7 +277,23 @@ const S = {
     upi_approved: '✅ UPI payment approved! <b>+{stars} ⭐</b> added to your wallet.',
     upi_rejected: '❌ UPI payment (Ref <code>{id}</code>) was rejected. Contact support if this is a mistake.',
     upi_disabled: 'UPI recharge is not available right now.',
-    upi_cancelled: 'UPI recharge cancelled.'
+    upi_cancelled: 'UPI recharge cancelled.',
+
+    // Payment support (/paysupport) and access links
+    paysupport:
+      '💳 <b>Payment support</b>\n\n' +
+      'Problem with a ⭐ payment? Tap the button below and describe what happened. ' +
+      'Please include the time of payment and the receipt ID from your wallet history.\n\n' +
+      '• Stars are added to your wallet right after Telegram confirms the payment.\n' +
+      '• Refunds of Telegram Stars payments are reviewed by an admin. A refund is possible only while the ⭐ are still unspent in your wallet.\n' +
+      '• Telegram support cannot help with purchases made through this bot.',
+    btn_get_links: '🔗 Access links',
+    links_title: '🔗 <b>Your access links</b>\n\n{lines}\n\nEach link works only for you.',
+    links_member: '• <b>{title}</b> — you are already a member ✅',
+    links_failed: '• <b>{title}</b> — could not create a link right now, try again shortly.',
+    links_none: 'You have no active subscription.',
+    payment_unmatched: '⚠️ We received your payment but could not match it automatically, so it was NOT added to your wallet yet. An admin has been alerted. You can also write to us via /paysupport.',
+    precheckout_rejected: '❌ This payment cannot be processed: {reason}'
   }
 };
 

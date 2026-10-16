@@ -10,6 +10,7 @@ function adminMenuKeyboard(userId) {
 
   const r1 = [];
   if (has('manage_channels')) r1.push(btnPrimary('📢 Channels', 'admin_channels'), btnPrimary('📈 Stats', 'admin_channel_stats'));
+  if (has('view_stats')) r1.push(btnPrimary('👣 Member Log', 'admin_memberlog'));
   if (r1.length) rows.push(r1);
 
   const r2 = [];
@@ -29,6 +30,7 @@ function adminMenuKeyboard(userId) {
 
   if (adminsDb.isSuperAdmin(userId)) {
     rows.push([btnPrimary('⚙️ Settings', 'admin_settings'), btnPrimary('👑 Admin Roles', 'admin_roles')]);
+    rows.push([btnPrimary('🧰 Jobs', 'admin_jobs')]);
   }
   rows.push([btn('🏠 Home', 'menu_main')]);
   return Markup.inlineKeyboard(rows);
@@ -42,7 +44,7 @@ function adminHeader() {
   if (d.openTickets) alerts.push(`🎫 ${d.openTickets} open ticket(s)`);
   return (
     '⚙️ <b>Admin Panel</b>\n\n' +
-    `📊 <b>Today</b>: +${fmtNum(d.todayRecharged)}⭐ recharged · ${fmtNum(d.todaySpent)}⭐ spent · ${d.todayNewUsers} new\n` +
+    `📊 <b>Today</b>: ${fmtNum(d.todayStarsNet)}⭐ net Stars · ${fmtNum(d.todaySales)}⭐ plan sales · ${d.todayNewUsers} new\n` +
     `👥 ${d.totalUsers} users · ${d.activeMembers} active · ${d.expiring24h} expiring ≤24h` +
     (alerts.length ? `\n🔔 ${alerts.join(' · ')}` : '')
   );
@@ -72,7 +74,8 @@ function register(bot) {
   // ---- Members hub ----
   bot.action('admin_members', async ctx => {
     if (!adminsDb.isAdmin(ctx.from.id)) return;
-    const rows = [[btnPrimary('🔍 Find User', 'admin_user_search'), btnPrimary('🎫 Tickets', 'admin_tickets')]];
+    const rows = [[btnPrimary('🔍 Find User', 'admin_user_search')]];
+    if (adminsDb.hasPermission(ctx.from.id, 'support')) rows[0].push(btnPrimary('🎫 Tickets', 'admin_tickets'));
     if (adminsDb.hasPermission(ctx.from.id, 'ban')) {
       rows.push([btnDanger('🚫 Ban List', 'admin_bans'), btnDanger('🗑 Removed Members', 'admin_removed_members')]);
     }

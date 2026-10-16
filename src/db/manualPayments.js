@@ -1,8 +1,9 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 const { genId } = require('../utils/ids');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'manualPayments.json');
+const FILE = path.join(DATA_DIR, 'manualPayments.json');
 
 // status: 'awaiting_proof' | 'pending' | 'approved' | 'rejected' | 'cancelled'
 function loadAll() { return readJSON(FILE, { items: {} }); }

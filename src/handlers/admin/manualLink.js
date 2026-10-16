@@ -1,8 +1,8 @@
 const { Markup } = require('telegraf');
 const channelsDb = require('../../db/channels');
-const linksDb = require('../../db/links');
+const auditDb = require('../../db/audit');
+const access = require('../../services/access');
 const adminsDb = require('../../db/admins');
-const { genId } = require('../../utils/ids');
 const { setState, getState, clearState } = require('../../state');
 const { btnPrimary, btnSuccess } = require('../../utils/keyboards');
 
@@ -10,24 +10,10 @@ async function createManualLink(ctx, channelId, targetUserId) {
   const channel = channelsDb.getById(channelId);
   if (!channel) return ctx.reply('Channel not found.');
   try {
-    const invite = await ctx.telegram.createChatInviteLink(channel.chatId, {
-      creates_join_request: true,
-      name: `manual-${targetUserId || 'open'}-${Date.now()}`
+    const { invite } = await access.issueLink(ctx.telegram, channel, targetUserId, {
+      type: 'manual', price: 0, createdBy: ctx.from.id, namePrefix: 'manual', clearOldBan: !!targetUserId
     });
-    linksDb.add({
-      id: genId('lnk'),
-      channelId: channel.id,
-      chatId: channel.chatId,
-      inviteLink: invite.invite_link,
-      ownerUserId: targetUserId, // null = open to whoever requests first
-      type: 'manual',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      createdBy: ctx.from.id,
-      usedAt: null,
-      usedBy: null,
-      price: 0
-    });
+    auditDb.add(ctx.from.id, 'manual_link', `${channel.title} for ${targetUserId || 'anyone'}`);
     await ctx.reply(
       `✅ Manual link created for <b>${channel.title}</b>:\n\n${invite.invite_link}\n\n` +
       (targetUserId ? `Reserved for user ID: ${targetUserId}` : 'Open to the first person who requests to join.'),

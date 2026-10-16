@@ -1,8 +1,13 @@
+// Must run first: strips bot tokens and invite links from every log line.
+require('./utils/redact').installConsoleRedaction();
+
 const { Telegraf } = require('telegraf');
 const config = require('./config');
 const settingsDb = require('./db/settings');
 const adminsDb = require('./db/admins');
 const { t } = require('./utils/i18n');
+const { createUpdateDedup } = require('./utils/updateDedup');
+const { reconcilePayments } = require('./services/payments');
 const { makeAgent, patchTelegramRetry, resilience, isTransient, errText, sleep } = require('./utils/resilience');
 
 // Slow-network settings:
@@ -14,6 +19,11 @@ const bot = new Telegraf(config.BOT_TOKEN, {
   telegram: { agent: makeAgent() }
 });
 patchTelegramRetry(bot.telegram);
+
+// 0) Skip updates Telegram re-delivers (an update only counts as handled after
+//    its handlers finished, so a crash mid-payment is still processed again).
+const updateDedup = createUpdateDedup();
+bot.use(updateDedup);
 
 // 1) Callback-query safety, edit-in-place replies, double-tap lock.
 bot.use(resilience());
@@ -64,6 +74,9 @@ require('./handlers/admin/removedMembers').register(bot);
 require('./handlers/admin/paymentHistory').register(bot);
 require('./handlers/admin/adminRoles').register(bot);
 require('./handlers/admin/refundAction').register(bot);
+require('./handlers/admin/refunds').register(bot);
+require('./handlers/admin/jobs').register(bot);
+require('./handlers/admin/membership').register(bot);
 require('./handlers/admin/users').register(bot);
 require('./handlers/admin/tickets').register(bot);
 require('./handlers/admin/revenue').register(bot);
@@ -110,10 +123,45 @@ async function waitForTelegram() {
   }
 }
 
+// Commands shown in Telegram's "/" menu: users see the basics, admins see more.
+async function registerCommands() {
+  try {
+    await bot.telegram.setMyCommands([
+      { command: 'start', description: 'Open the main menu' },
+      { command: 'paysupport', description: 'Help with a payment' }
+    ]);
+    const adminCommands = [
+      { command: 'admin', description: 'Admin panel' },
+      { command: 'charges', description: 'List payments of a user' },
+      { command: 'refund', description: 'Refund a Stars payment' },
+      { command: 'revoke', description: 'Revoke a user\'s access' },
+      { command: 'jobs', description: 'Background job status' },
+      { command: 'memberlog', description: 'Observed member activity' },
+      { command: 'paysupport', description: 'Payment support text' }
+    ];
+    for (const id of adminsDb.allAdminIds()) {
+      await bot.telegram.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: Number(id) } }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[boot] could not register commands:', errText(err).slice(0, 100));
+  }
+}
+
 (async () => {
   await waitForTelegram();
 
+  await registerCommands();
+
+  // Finish any payment that was recorded but not credited before a crash.
+  try {
+    const fixed = await reconcilePayments(bot.telegram, { minAgeMs: 0 });
+    if (fixed) console.warn(`[boot] reconciled ${fixed} uncredited payment(s).`);
+  } catch (err) {
+    console.error('[boot] payment reconcile failed:', errText(err));
+  }
+
   // Jobs don't depend on how long launch() stays pending.
+  require('./jobs/jobRunner').start(bot);
   require('./jobs/subscriptionExpiry').start(bot);
   require('./jobs/autoRenew').start(bot);
   require('./jobs/reminders').start(bot);
@@ -127,5 +175,5 @@ async function waitForTelegram() {
   console.log('✅ Bot started successfully.');
 })();
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => { updateDedup.flush(); bot.stop('SIGINT'); });
+process.once('SIGTERM', () => { updateDedup.flush(); bot.stop('SIGTERM'); });

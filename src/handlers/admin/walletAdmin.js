@@ -1,5 +1,6 @@
 const adminsDb = require('../../db/admins');
 const walletsDb = require('../../db/wallets');
+const auditDb = require('../../db/audit');
 const { setState, getState, clearState } = require('../../state');
 
 function register(bot) {
@@ -26,7 +27,9 @@ function register(bot) {
       const amount = parseInt(ctx.message.text.trim(), 10);
       clearState(ctx.from.id);
       if (!Number.isInteger(amount) || amount === 0) return ctx.reply('Invalid amount.');
+      if (!adminsDb.hasPermission(ctx.from.id, 'wallet_adjust')) return next();
       const wallet = walletsDb.addTransaction(state.data.targetId, amount, 'admin_adjust', { adminId: ctx.from.id });
+      auditDb.add(ctx.from.id, 'wallet_adjust', `user ${state.data.targetId} ${amount >= 0 ? '+' : ''}${amount}`);
       await ctx.reply(`✅ Adjusted. New balance: ${wallet.balance}⭐`);
       try {
         await ctx.telegram.sendMessage(

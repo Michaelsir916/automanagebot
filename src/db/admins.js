@@ -1,13 +1,28 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 const config = require('../config');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'admins.json');
+const FILE = path.join(DATA_DIR, 'admins.json');
 
 const ALL_PERMISSIONS = [
   'manage_channels', 'manage_plans', 'generate_link', 'broadcast',
-  'wallet_adjust', 'ban', 'view_payments', 'manage_admins'
+  'wallet_adjust', 'ban', 'view_payments', 'manage_admins',
+  'view_stats', 'refund', 'support'
 ];
+
+// Role -> permissions. Bootstrap admins (ADMIN_IDS) are always super admins.
+//   superadmin - everything, including settings, admin roles, backups
+//   moderator  - classic default: manual links, payment history, tickets
+//   support    - answers users: tickets, payment history, stats, manual links
+//   readonly   - can look (stats, payments) but never change anything
+const ROLE_PRESETS = {
+  superadmin: ALL_PERMISSIONS,
+  moderator: ['generate_link', 'view_payments', 'support'],
+  support: ['support', 'view_payments', 'view_stats', 'generate_link'],
+  readonly: ['view_payments', 'view_stats']
+};
+const ROLES = Object.keys(ROLE_PRESETS);
 
 function loadAll() {
   return readJSON(FILE, { admins: {} });
@@ -42,14 +57,22 @@ function hasPermission(userId, permission) {
   const a = data.admins[String(userId)];
   if (!a) return false;
   if (a.role === 'superadmin') return true;
+  // Moderators created before the "support" permission existed keep ticket access.
+  if (permission === 'support' && a.role === 'moderator') return true;
   return (a.permissions || []).includes(permission);
+}
+
+function roleOf(userId) {
+  if (isBootstrapAdmin(userId)) return 'superadmin';
+  const a = loadAll().admins[String(userId)];
+  return a ? a.role : null;
 }
 
 function addAdmin(userId, role, permissions, addedBy) {
   const data = loadAll();
   data.admins[String(userId)] = {
-    role, // 'superadmin' | 'moderator'
-    permissions: role === 'superadmin' ? ALL_PERMISSIONS : (permissions || []),
+    role, // one of ROLES
+    permissions: role === 'superadmin' ? ALL_PERMISSIONS : (permissions || ROLE_PRESETS[role] || []),
     addedAt: new Date().toISOString(),
     addedBy
   };
@@ -78,6 +101,6 @@ function allAdminIds() {
 
 module.exports = {
   isAdmin, isSuperAdmin, hasPermission,
-  addAdmin, removeAdmin, listAdmins, allAdminIds,
-  ALL_PERMISSIONS
+  addAdmin, removeAdmin, listAdmins, allAdminIds, roleOf,
+  ALL_PERMISSIONS, ROLE_PRESETS, ROLES
 };

@@ -1,8 +1,9 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 const { genId } = require('../utils/ids');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'subscriptions.json');
+const FILE = path.join(DATA_DIR, 'subscriptions.json');
 
 function loadAll() {
   return readJSON(FILE, { subscriptions: {} });
@@ -37,6 +38,10 @@ function start(channelId, userId, chatId, linkId, durationDays, opts = {}) {
     linkId,
     autoRenew: false,
     flags: {},
+    // The wallet transaction that paid for this purchase (shared by every
+    // channel of a bundle) - ties the entitlements back to ONE payment.
+    purchaseTxnId: opts.purchaseTxnId || null,
+    pricePaid: opts.pricePaid === undefined ? null : opts.pricePaid,
     startedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     status: 'active'
@@ -49,9 +54,26 @@ function start(channelId, userId, chatId, linkId, durationDays, opts = {}) {
 // Start every channel of a bundle purchase at once, all sharing one groupId
 // and the same expiry - this is what makes them expire/kick together.
 // entries: [{ channelId, chatId, linkId }, ...]
-function startGroup(entries, userId, durationDays, planId) {
+function startGroup(entries, userId, durationDays, planId, opts = {}) {
   const groupId = genId('subgrp');
-  return entries.map(e => start(e.channelId, userId, e.chatId, e.linkId, durationDays, { groupId, planId }));
+  return entries.map(e => start(e.channelId, userId, e.chatId, e.linkId, durationDays, {
+    groupId, planId, purchaseTxnId: opts.purchaseTxnId, pricePaid: opts.pricePaid
+  }));
+}
+
+// Mark every active member of a group as revoked (admin action / refund policy).
+function revokeGroup(groupId) {
+  const data = loadAll();
+  const touched = [];
+  Object.values(data.subscriptions).forEach(s => {
+    if (s.groupId === groupId && s.status === 'active') {
+      s.status = 'revoked';
+      s.revokedAt = new Date().toISOString();
+      touched.push({ ...s });
+    }
+  });
+  if (touched.length) saveAll(data);
+  return touched;
 }
 
 function get(channelId, userId) {
@@ -199,5 +221,5 @@ function hasHadPlan(userId, planId) {
 module.exports = {
   start, startGroup, get, markExpired, listActiveExpired, listByUser,
   listByGroup, setAutoRenew, setGroupAutoRenew, renewGroup, listGroupsDueForRenewal,
-  listAll, setGroupFlag, listGroups, findActiveGroupByPlan, hasHadPlan
+  listAll, setGroupFlag, listGroups, findActiveGroupByPlan, hasHadPlan, revokeGroup
 };

@@ -1,7 +1,8 @@
 const path = require('path');
+const { DATA_DIR } = require('./dataDir');
 const { readJSON, writeJSON } = require('./atomicWrite');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'channels.json');
+const FILE = path.join(DATA_DIR, 'channels.json');
 
 function loadAll() {
   return readJSON(FILE, { channels: [] });

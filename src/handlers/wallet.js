@@ -1,6 +1,5 @@
 const { Markup } = require('telegraf');
 const walletsDb = require('../db/wallets');
-const paymentsDb = require('../db/payments');
 const bansDb = require('../db/bans');
 const usersDb = require('../db/users');
 const settingsDb = require('../db/settings');
@@ -8,10 +7,9 @@ const { setState, getState, clearState } = require('../state');
 const { btn, btnPrimary, btnSuccess, btnDanger, navRow, grid } = require('../utils/keyboards');
 const { t, hasKey } = require('../utils/i18n');
 const { fmtDate, fmtNum, escapeHtml } = require('../utils/format');
-const { creditRecharge } = require('../services/rewards');
+const { MAX_STARS_PER_INVOICE, buildPayload, preCheckoutDecision, processSuccessfulPayment } = require('../services/payments');
 const { sendToUser } = require('../utils/notify');
 
-const MAX_STARS_PER_INVOICE = 10000;
 const PAGE_SIZE = 8;
 
 // History filters -> which transaction types they include
@@ -39,7 +37,7 @@ async function sendRechargeInvoice(ctx, amount) {
     await ctx.telegram.sendInvoice(userId, {
       title: t(userId, 'invoice_title'),
       description: t(userId, 'invoice_desc', { amount }),
-      payload: `recharge_${userId}_${Date.now()}`,
+      payload: buildPayload(userId),
       provider_token: '', // must be empty for Telegram Stars payments
       currency: 'XTR',
       prices: [{ label: t(userId, 'invoice_label', { amount }), amount }]
@@ -237,9 +235,20 @@ function register(bot) {
   });
 
   // ---------- Stars payments ----------
+  // Pre-checkout only decides "may Telegram take this payment?". It never
+  // credits anything; the wallet is credited only after the verified
+  // successful_payment update below. Telegram requires an answer within 10s,
+  // so this stays synchronous and does no network work besides the answer.
   bot.on('pre_checkout_query', async ctx => {
+    const query = ctx.preCheckoutQuery;
+    const decision = preCheckoutDecision(query, { isBanned: id => bansDb.isBanned(id) });
     try {
-      await ctx.answerPreCheckoutQuery(true);
+      if (decision.ok) {
+        await ctx.answerPreCheckoutQuery(true);
+      } else {
+        console.warn(`[wallet] pre_checkout rejected (${decision.reason}) for user ${query.from && query.from.id}`);
+        await ctx.answerPreCheckoutQuery(false, t(query.from.id, 'precheckout_rejected', { reason: decision.message }));
+      }
     } catch (err) {
       console.error('[wallet] pre_checkout error:', err.message);
     }
@@ -247,19 +256,18 @@ function register(bot) {
 
   bot.on('message', async (ctx, next) => {
     const payment = ctx.message.successful_payment;
-    // Only claim wallet-recharge invoices here (payload prefix we set
-    // ourselves in sendRechargeInvoice). Other payloads fall through.
-    if (!payment || !payment.invoice_payload.startsWith('recharge_')) return next();
-    const stars = payment.total_amount; // for XTR, this IS the star count
+    if (!payment) return next();
     const userId = ctx.from.id;
-    const chargeId = payment.telegram_payment_charge_id;
 
-    // Idempotent: if Telegram re-delivers this update (slow ack / restart)
-    // the same charge must never be credited twice.
-    if (walletsDb.hasChargeId(userId, chargeId) || paymentsDb.hasCharge(chargeId)) return;
-
-    await creditRecharge(ctx.telegram, userId, stars, { type: 'recharge', meta: { telegramPaymentChargeId: chargeId } });
-    paymentsDb.add(userId, stars, chargeId);
+    // Idempotent per Telegram charge ID (see services/payments.js): a
+    // re-delivered update, a restart mid-way or a concurrent duplicate can
+    // only ever credit the wallet once. Errors are NOT swallowed - the update
+    // is then not marked as processed, and the payment reconciler also picks
+    // up anything that was recorded but not credited yet.
+    const result = await processSuccessfulPayment(ctx.telegram, userId, payment);
+    if (result.status === 'rejected' || result.status === 'invalid') {
+      await ctx.reply(t(userId, 'payment_unmatched')).catch(() => {});
+    }
   });
 }
 

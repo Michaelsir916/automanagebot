@@ -6,7 +6,8 @@ const bansDb = require('../db/bans');
 const adminsDb = require('../db/admins');
 const subscriptionsDb = require('../db/subscriptions');
 const removedMembersDb = require('../db/removedMembers');
-const { genId } = require('../utils/ids');
+const access = require('../services/access');
+const { creditBackToWallet } = require('../services/refunds');
 const { btn, btnPrimary, btnSuccess, navRow } = require('../utils/keyboards');
 const { t } = require('../utils/i18n');
 const { escapeHtml, fmtDate, fmtNum } = require('../utils/format');
@@ -98,43 +99,28 @@ function register(bot) {
     // Instant feedback while Telegram creates the link (can be slow).
     try { await ctx.editMessageText(t(userId, 'processing')); } catch (e) { /* not editable */ }
 
-    let invite = null;
+    let issued = null;
+    let paidTxn = null;
+    let receiptText = '';
     try {
       // Create the invite link FIRST. Only deduct from the wallet once we
       // know link creation actually succeeded, so a Telegram API failure
       // never charges the user for nothing.
-      invite = await ctx.telegram.createChatInviteLink(channel.chatId, {
-        creates_join_request: true,
-        name: `paid-${userId}-${Date.now()}`.slice(0, 32)
-      });
+      issued = await access.issueLink(ctx.telegram, channel, userId, { type: 'paid', price, namePrefix: 'paid' });
 
       const debited = walletsDb.tryDebit(userId, price, 'channel_unlock', {
-        channelId: channel.id, channelTitle: channel.title
+        channelId: channel.id, channelTitle: channel.title, channelIds: [channel.id]
       });
       if (!debited) {
         // Balance changed while we were talking to Telegram.
-        ctx.telegram.revokeChatInviteLink(channel.chatId, invite.invite_link).catch(() => {});
+        linksDb.update(issued.record.id, { status: 'revoked' });
+        access.enqueueRevoke({ chatId: channel.chatId, inviteLink: issued.invite.invite_link, linkId: issued.record.id });
         return ctx.reply(t(userId, 'insufficient', {
           price: fmtNum(price), balance: fmtNum(walletsDb.getBalance(userId)), short: fmtNum(price - walletsDb.getBalance(userId))
         }), { parse_mode: 'HTML', ...back });
       }
+      paidTxn = debited.transactions[debited.transactions.length - 1];
       recentUnlocks.set(repeatKey, Date.now());
-
-      const link = {
-        id: genId('lnk'),
-        channelId: channel.id,
-        chatId: channel.chatId,
-        inviteLink: invite.invite_link,
-        ownerUserId: userId,
-        type: 'paid',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        createdBy: userId,
-        usedAt: null,
-        usedBy: null,
-        price
-      };
-      linksDb.add(link);
 
       // Paying again is how a user "renews" - always clear any earlier
       // expiry block so their fresh link actually works.
@@ -142,22 +128,38 @@ function register(bot) {
 
       let expiry = t(userId, 'lifetime_line');
       if (channel.durationDays && channel.durationDays > 0) {
-        const sub = subscriptionsDb.start(channel.id, userId, channel.chatId, link.id, channel.durationDays);
+        const sub = subscriptionsDb.start(channel.id, userId, channel.chatId, issued.record.id, channel.durationDays, {
+          purchaseTxnId: paidTxn.id, pricePaid: price
+        });
         expiry = t(userId, 'expiry_line', { date: fmtDate(sub.expiresAt) });
       }
 
-      const txn = debited.transactions[debited.transactions.length - 1];
-      await ctx.reply(
-        t(userId, 'channel_unlocked', { title: escapeHtml(channel.title), link: invite.invite_link, expiry }) +
-        t(userId, 'receipt_purchase', { id: txn.id, amount: fmtNum(price), balance: fmtNum(debited.balance), date: fmtDate(new Date()) }),
-        {
-          parse_mode: 'HTML', ...NO_PREVIEW,
-          ...Markup.inlineKeyboard([[btnPrimary(t(userId, 'btn_my_subs'), 'menu_subs'), btn(t(userId, 'home'), 'menu_main')]])
-        }
-      );
+      receiptText =
+        t(userId, 'channel_unlocked', { title: escapeHtml(channel.title), link: issued.invite.invite_link, expiry }) +
+        t(userId, 'receipt_purchase', { id: paidTxn.id, amount: fmtNum(price), balance: fmtNum(debited.balance), date: fmtDate(new Date()) });
     } catch (err) {
       console.error('[channels] unlock failed:', err.message);
-      await ctx.reply(t(userId, 'channel_unlock_failed'), back);
+      // Anything that failed AFTER the wallet was charged is paid back exactly once.
+      if (paidTxn) {
+        creditBackToWallet({ key: `purchase:${paidTxn.id}`, userId, amount: price, type: 'plan_purchase_refund', reason: 'unlock failed' });
+      }
+      if (issued) {
+        linksDb.update(issued.record.id, { status: 'revoked' });
+        access.enqueueRevoke({ chatId: channel.chatId, inviteLink: issued.invite.invite_link, linkId: issued.record.id });
+      }
+      recentUnlocks.delete(repeatKey);
+      return ctx.reply(t(userId, 'channel_unlock_failed'), back);
+    }
+
+    // The purchase is complete and stored. A failure to SEND the message must
+    // not undo it - the user can still find it under "My subscriptions".
+    try {
+      await ctx.reply(receiptText, {
+        parse_mode: 'HTML', ...NO_PREVIEW,
+        ...Markup.inlineKeyboard([[btnPrimary(t(userId, 'btn_my_subs'), 'menu_subs'), btn(t(userId, 'home'), 'menu_main')]])
+      });
+    } catch (err) {
+      console.error('[channels] could not deliver unlock message:', err.message);
     }
   });
 }

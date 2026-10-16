@@ -2,6 +2,7 @@ const { Markup } = require('telegraf');
 const plansDb = require('../../db/plans');
 const channelsDb = require('../../db/channels');
 const adminsDb = require('../../db/admins');
+const auditDb = require('../../db/audit');
 const { genId } = require('../../utils/ids');
 const { setState, getState, clearState } = require('../../state');
 const { btnPrimary, btnSuccess, btnDanger } = require('../../utils/keyboards');
@@ -164,12 +165,30 @@ function register(bot) {
     const plan = plansDb.getById(ctx.match[1]);
     if (!plan) return;
     plansDb.update(plan.id, { active: !plan.active });
+    auditDb.add(ctx.from.id, 'plan', `${plan.title} ${!plan.active ? 'activated' : 'deactivated'}`);
     await ctx.reply(`Plan is now ${!plan.active ? 'Active 🟢' : 'Inactive 🔴'}.`);
   });
-  bot.action(/admin_plan_delete_(\S+)/, async ctx => {
+  // Deleting asks for confirmation first.
+  bot.action(/^admin_plan_delete_(\S+)$/, async ctx => {
     await ctx.answerCbQuery();
     if (!requirePerm(ctx)) return;
-    plansDb.remove(ctx.match[1]);
+    const plan = plansDb.getById(ctx.match[1]);
+    if (!plan) return ctx.reply('Plan not found.');
+    await ctx.reply(
+      `🗑 Delete plan <b>${plan.title}</b>? Existing subscribers keep access until their current expiry.`,
+      {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[btnDanger('Yes, delete', `admin_plan_delyes_${plan.id}`), btnPrimary('Cancel', `admin_plan_view_${plan.id}`)]])
+      }
+    );
+  });
+  bot.action(/^admin_plan_delyes_(\S+)$/, async ctx => {
+    await ctx.answerCbQuery();
+    if (!requirePerm(ctx)) return;
+    const plan = plansDb.getById(ctx.match[1]);
+    if (!plan) return ctx.reply('Plan already deleted.');
+    plansDb.remove(plan.id);
+    auditDb.add(ctx.from.id, 'plan', `deleted ${plan.title}`);
     await ctx.reply('🗑 Plan deleted. Existing subscribers keep access until their current expiry.');
   });
 
@@ -214,6 +233,7 @@ function register(bot) {
         createdAt: new Date().toISOString(),
         createdBy: ctx.from.id
       });
+      auditDb.add(ctx.from.id, 'plan', `created ${plan.title} ${plan.price}⭐`);
       return ctx.reply(`✅ Plan created: ${planSummaryLine(plan)}`, { parse_mode: 'HTML' });
     }
 
@@ -253,6 +273,7 @@ function register(bot) {
         createdAt: new Date().toISOString(),
         createdBy: ctx.from.id
       });
+      auditDb.add(ctx.from.id, 'plan', `created ${plan.title} ${plan.price}⭐`);
       return ctx.reply(`✅ Bundle created: ${planSummaryLine(plan)}\n   → ${channelTitles(plan.channelIds)}`, { parse_mode: 'HTML' });
     }
 
@@ -260,6 +281,7 @@ function register(bot) {
       const title = ctx.message.text.trim();
       clearState(ctx.from.id);
       plansDb.update(state.data.planId, { title });
+      auditDb.add(ctx.from.id, 'plan', `${state.data.planId} title = ${title}`);
       return ctx.reply(`✅ Title updated to "${title}".`);
     }
 
@@ -268,6 +290,7 @@ function register(bot) {
       clearState(ctx.from.id);
       if (Number.isNaN(durationDays) || durationDays < 0) return ctx.reply('Invalid duration.');
       plansDb.update(state.data.planId, { durationDays });
+      auditDb.add(ctx.from.id, 'plan', `${state.data.planId} duration = ${durationDays}`);
       return ctx.reply(`✅ Duration updated to ${durationLabel(durationDays)}.\n\nNote: only affects new purchases, not existing subscribers.`);
     }
 
@@ -276,6 +299,7 @@ function register(bot) {
       clearState(ctx.from.id);
       if (!Number.isInteger(price) || price < 1) return ctx.reply('Invalid price.');
       plansDb.update(state.data.planId, { price });
+      auditDb.add(ctx.from.id, 'plan', `${state.data.planId} price = ${price}`);
       return ctx.reply(`✅ Price updated to ${price}⭐.`);
     }
 
@@ -284,6 +308,7 @@ function register(bot) {
       clearState(ctx.from.id);
       if (!Number.isInteger(testPrice) || testPrice < 0) return ctx.reply('Invalid price.');
       plansDb.update(state.data.planId, { testPrice });
+      auditDb.add(ctx.from.id, 'plan', `${state.data.planId} test price = ${testPrice}`);
       return ctx.reply(`✅ Test price updated to ${testPrice}⭐.`);
     }
 

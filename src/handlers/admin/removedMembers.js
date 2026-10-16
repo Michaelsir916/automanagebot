@@ -3,12 +3,13 @@ const adminsDb = require('../../db/admins');
 const removedMembersDb = require('../../db/removedMembers');
 const channelsDb = require('../../db/channels');
 const { setState, getState, clearState } = require('../../state');
+const auditDb = require('../../db/audit');
 const { btnSuccess } = require('../../utils/keyboards');
+const { escapeHtml } = require('../../utils/format');
+const { paginate, pagerButtons } = require('../../utils/paginate');
 
 function register(bot) {
-  bot.action('admin_removed_members', async ctx => {
-    await ctx.answerCbQuery();
-    if (!adminsDb.hasPermission(ctx.from.id, 'ban')) return;
+  const showRemoved = async (ctx, page) => {
     const list = removedMembersDb.list();
     if (list.length === 0) {
       return ctx.reply(
@@ -16,23 +17,32 @@ function register(bot) {
         Markup.inlineKeyboard([[Markup.button.callback('⬅️ Back', 'admin_back')]])
       );
     }
-    const lines = list.map(r => {
+    const pg = paginate(list, page, 15);
+    const lines = pg.items.map(r => {
       const channel = channelsDb.getById(r.channelId);
       const channelTitle = channel ? channel.title : r.channelId;
-      return `${r.userId} — ${channelTitle} (${r.reason}, ${new Date(r.removedAt).toLocaleDateString()})`;
+      return `${r.userId} — ${escapeHtml(channelTitle)} (${escapeHtml(r.reason)}, ${new Date(r.removedAt).toLocaleDateString()})`;
     });
+    const rows = [[btnSuccess('➖ Clear an Entry', 'admin_removed_clear')]];
+    const pager = pagerButtons('admin_removed_p_', pg.page, pg.pages);
+    if (pager.length) rows.push(pager);
+    rows.push([Markup.button.callback('⬅️ Back', 'admin_back')]);
     await ctx.reply(
-      `🗑 <b>Removed Members</b>\n\n` +
-      `These users were auto-kicked (expired subscription, etc.) and can't rejoin via a link until removed from this list. Paying again for the same channel clears this automatically.\n\n` +
+      `🗑 <b>Removed Members</b> (${pg.total}) — page ${pg.page + 1}/${pg.pages}\n\n` +
+      `These users were removed (expired subscription, revoked access, etc.) and can't rejoin via a link until removed from this list. Paying again for the same channel clears this automatically.\n\n` +
       lines.join('\n'),
-      {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [btnSuccess('➖ Clear an Entry', 'admin_removed_clear')],
-          [Markup.button.callback('⬅️ Back', 'admin_back')]
-        ])
-      }
+      { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows) }
     );
+  };
+  bot.action('admin_removed_members', async ctx => {
+    await ctx.answerCbQuery();
+    if (!adminsDb.hasPermission(ctx.from.id, 'ban')) return;
+    await showRemoved(ctx, 0);
+  });
+  bot.action(/^admin_removed_p_(\d+)$/, async ctx => {
+    await ctx.answerCbQuery();
+    if (!adminsDb.hasPermission(ctx.from.id, 'ban')) return;
+    await showRemoved(ctx, parseInt(ctx.match[1], 10));
   });
 
   bot.action('admin_removed_clear', async ctx => {
@@ -68,6 +78,7 @@ function register(bot) {
     clearState(ctx.from.id);
     const [, channelId, userId] = ctx.match;
     const removed = removedMembersDb.remove(channelId, userId);
+    if (removed) auditDb.add(ctx.from.id, 'removed_clear', `user ${userId} channel ${channelId}`);
     await ctx.reply(removed
       ? `✅ User ${userId} cleared. They can unlock and join again now.`
       : 'That entry was already cleared.');

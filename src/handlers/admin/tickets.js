@@ -10,7 +10,7 @@ const { t } = require('../../utils/i18n');
 
 function register(bot) {
   bot.action('admin_tickets', async ctx => {
-    if (!adminsDb.isAdmin(ctx.from.id)) return;
+    if (!adminsDb.hasPermission(ctx.from.id, 'support')) return;
     const open = ticketsDb.listOpen().sort((a, b) => a.no - b.no).slice(0, 12);
     const rows = open.map(tk => {
       const u = usersDb.get(tk.userId);
@@ -26,7 +26,7 @@ function register(bot) {
   });
 
   bot.action(/^admin_ticket_(\d+)$/, async ctx => {
-    if (!adminsDb.isAdmin(ctx.from.id)) return;
+    if (!adminsDb.hasPermission(ctx.from.id, 'support')) return;
     const tk = ticketsDb.get(ctx.match[1]);
     if (!tk) return ctx.reply('Ticket not found.');
     const lines = tk.messages.slice(-8).map(m => `${m.from === 'user' ? '👤' : '🛠'} <i>${fmtDate(m.at)}</i>\n${escapeHtml(m.text).slice(0, 500)}`).join('\n\n');
@@ -39,7 +39,7 @@ function register(bot) {
   });
 
   bot.action(/^ticket_close_(\d+)$/, async ctx => {
-    if (!adminsDb.isAdmin(ctx.from.id)) return;
+    if (!adminsDb.hasPermission(ctx.from.id, 'support')) return;
     const tk = ticketsDb.close(ctx.match[1], ctx.from.id);
     try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (e) { /* ignore */ }
     if (!tk) return ctx.replyNew('Ticket already closed or not found.');
